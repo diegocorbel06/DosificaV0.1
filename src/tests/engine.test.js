@@ -21,7 +21,7 @@ describe('Clinical engine basics', () => {
     expect(evaluateRule(rule, patient)).toBe(true);
   });
 
-  it('evalúa ConditionGroup recursivo y ordena por prioridad', () => {
+  it('evalúa múltiples variables simultáneas y ordena por prioridad', () => {
     const rules = [
       {
         id: 'baja-prioridad',
@@ -31,6 +31,7 @@ describe('Clinical engine basics', () => {
           operator: 'AND',
           conditions: [
             { field: 'edad', label: 'Edad', type: 'number', operator: '>', value: 12 },
+            { field: 'sexo', label: 'Sexo', type: 'select', operator: '=', value: 'F' },
           ],
         },
       },
@@ -39,16 +40,11 @@ describe('Clinical engine basics', () => {
         active: true,
         priority: 10,
         conditions: {
-          operator: 'OR',
+          operator: 'AND',
           conditions: [
-            {
-              operator: 'AND',
-              conditions: [
-                { field: 'edad', label: 'Edad', type: 'number', operator: '>=', value: 18 },
-                { field: 'laboratorio.hemoglobina', label: 'Hb', type: 'number', operator: '<', value: 11 },
-              ],
-            },
-            { field: 'signos', label: 'Signos', type: 'select', operator: 'includes', value: 'palidez' },
+            { field: 'edad', label: 'Edad', type: 'number', operator: '>=', value: 18 },
+            { field: 'gestante', label: 'Gestante', type: 'boolean', operator: '=', value: true },
+            { field: 'laboratorio.hemoglobina', label: 'Hb', type: 'number', operator: '<', value: 11 },
           ],
         },
       },
@@ -56,7 +52,8 @@ describe('Clinical engine basics', () => {
 
     const patient = {
       edad: 20,
-      signos: ['palidez'],
+      sexo: 'F',
+      gestante: true,
       laboratorio: { hemoglobina: 10.2 },
     };
 
@@ -64,20 +61,32 @@ describe('Clinical engine basics', () => {
     expect(matched.map((rule) => rule.id)).toEqual(['alta-prioridad', 'baja-prioridad']);
   });
 
-  it('filtra por nivel resolutivo y retorna plan/medicación disponible', () => {
+  it('filtra por nivel resolutivo, evalúa altitud y retorna CompositeResult', () => {
     const rules = [
       {
-        id: 'solo-I3',
+        id: 'solo-I3-altitud',
         pathologyId: 'anemia',
         priority: 5,
         levelRestriction: ['I-3', 'I-4'],
+        altitudeMaxMsnm: 500,
         conditions: {
           operator: 'AND',
           conditions: [{ field: 'edad', label: 'Edad', type: 'number', operator: '>', value: 5 }],
         },
-        result: { classification: 'Anemia moderada', severity: 'Moderada' },
+        result: {
+          classification: 'Anemia moderada',
+          severity: 'Moderada',
+          morphology: 'Microcítica hipocrómica',
+          medullaryResponse: 'Arregenerativa',
+        },
+        compositeResult: {
+          primaryClassification: 'Anemia moderada',
+          secondaryClassification: 'Microcítica hipocrómica',
+          tertiaryClassification: 'Arregenerativa',
+        },
         managementPlan: { id: 'MP-1', name: 'Plan hierro', description: 'Control y suplementación' },
         specificMedications: ['Sulfato ferroso', 'Ácido fólico'],
+        requiredMedications: ['Sulfato ferroso'],
         treatment: { firstLine: 'Sulfato ferroso', doseFormula: '3 mg * peso' },
       },
     ];
@@ -85,19 +94,34 @@ describe('Clinical engine basics', () => {
     const patient = {
       edad: 20,
       peso: 50,
+      sexo: 'F',
+      gestante: false,
+      altitud: 650,
       nivelResolutivo: 'I-2',
       medicamentosDisponibles: ['Sulfato ferroso'],
     };
 
-    const none = runRuleEngine({ rules, patientData: patient });
-    expect(none).toHaveLength(0);
+    const noneByLevel = runRuleEngine({ rules, patientData: patient });
+    expect(noneByLevel).toHaveLength(0);
+
+    const noneByAltitude = runRuleEngine({
+      rules,
+      patientData: { ...patient, nivelResolutivo: 'I-3' },
+      altitudeConfig: { maxMsnm: 500 },
+    });
+    expect(noneByAltitude).toHaveLength(0);
 
     const resolved = runRuleEngine({
       rules,
-      patientData: { ...patient, nivelResolutivo: 'I-3' },
+      patientData: { ...patient, nivelResolutivo: 'I-3', altitud: 400 },
+      altitudeConfig: { maxMsnm: 500 },
     });
 
     expect(resolved[0].classification).toBe('Anemia moderada');
+    expect(resolved[0].severity).toBe('Moderada');
+    expect(resolved[0].morphology).toBe('Microcítica hipocrómica');
+    expect(resolved[0].medullaryResponse).toBe('Arregenerativa');
+    expect(resolved[0].compositeResult.secondaryClassification).toBe('Microcítica hipocrómica');
     expect(resolved[0].planRecommended).toBe('Control y suplementación');
     expect(resolved[0].medicationAvailable).toEqual(['Sulfato ferroso']);
   });

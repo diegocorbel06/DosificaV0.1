@@ -7,6 +7,8 @@ const defaultVariables = [
   { id: 'edad', name: 'Edad', type: 'number', unit: 'años' },
   { id: 'peso', name: 'Peso', type: 'number', unit: 'kg' },
   { id: 'sexo', name: 'Sexo', type: 'select', options: ['F', 'M', 'Otro'] },
+  { id: 'gestante', name: 'Gestante', type: 'boolean' },
+  { id: 'altitud', name: 'Altitud', type: 'number', unit: 'msnm' },
   { id: 'signos', name: 'Signos', type: 'select', options: ['mucosas secas', 'ojos hundidos', 'palidez'] },
   { id: 'laboratorio.hemoglobina', name: 'Hemoglobina', type: 'number', unit: 'g/dL' },
   { id: 'laboratorio.sodio', name: 'Sodio', type: 'number', unit: 'mmol/L' },

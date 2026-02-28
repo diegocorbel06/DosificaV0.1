@@ -26,6 +26,23 @@ const getDiagnosis = (rule) => rule.diagnosis || rule.result?.classification || 
 const getSeverity = (rule) => rule.severity || rule.result?.severity || '';
 const getPathology = (rule) => rule.pathology || rule.pathologyId || 'general';
 
+const getCompositeResult = (rule) => {
+  const explicit = rule.compositeResult;
+  if (explicit && typeof explicit === 'object') {
+    return {
+      primaryClassification: explicit.primaryClassification || getDiagnosis(rule),
+      secondaryClassification: explicit.secondaryClassification || '',
+      tertiaryClassification: explicit.tertiaryClassification || '',
+    };
+  }
+
+  return {
+    primaryClassification: getDiagnosis(rule),
+    secondaryClassification: rule.result?.morphology || rule.morphology || '',
+    tertiaryClassification: rule.result?.medullaryResponse || rule.medullaryResponse || '',
+  };
+};
+
 const getManagementPlan = (rule) => {
   if (rule.managementPlan && typeof rule.managementPlan === 'object') {
     return {
@@ -99,18 +116,40 @@ const getTreatmentConfig = (rule) => {
   return {};
 };
 
+const matchesAltitudeConstraint = (rule, patientData, altitudeConfig) => {
+  const patientAltitude = Number(patientData.altitud ?? patientData.altitude ?? 0);
+  const maxMsnm = Number(altitudeConfig?.maxMsnm ?? 500);
+
+  if (Number.isNaN(patientAltitude)) return false;
+
+  if (rule.altitudeRange && typeof rule.altitudeRange === 'object') {
+    const min = Number(rule.altitudeRange.min ?? 0);
+    const max = Number(rule.altitudeRange.max ?? maxMsnm);
+    return patientAltitude >= min && patientAltitude <= max;
+  }
+
+  if (typeof rule.altitudeMaxMsnm === 'number') {
+    return patientAltitude <= rule.altitudeMaxMsnm;
+  }
+
+  return patientAltitude <= maxMsnm;
+};
+
 /**
  * Ejecuta reglas dinámicas y retorna recomendaciones clínicas integradas con inventario.
  */
-export const runRuleEngine = ({ rules = [], patientData, unmetPolicy = 'reference' }) => {
+export const runRuleEngine = ({ rules = [], patientData, unmetPolicy = 'reference', altitudeConfig }) => {
   const matchedRules = evaluateRules(rules, patientData);
 
-  // Requisito: filtrar por nivel resolutivo del establecimiento activo.
   const levelFilteredRules = matchedRules.filter((rule) =>
     meetsAnyRequiredLevel(getRequiredLevels(rule), patientData.nivelResolutivo),
   );
 
-  return levelFilteredRules
+  const altitudeFilteredRules = levelFilteredRules.filter((rule) =>
+    matchesAltitudeConstraint(rule, patientData, altitudeConfig),
+  );
+
+  return altitudeFilteredRules
     .map((rule) => {
       const specificMedications = getRuleSpecificMedications(rule);
       const strictRequiredMedications = toArray(rule.requiredMedications);
@@ -130,12 +169,13 @@ export const runRuleEngine = ({ rules = [], patientData, unmetPolicy = 'referenc
 
       const managementPlan = getManagementPlan(rule);
       const treatment = getTreatmentConfig(rule);
+      const compositeResult = getCompositeResult(rule);
       const definitiveTreatmentAllowed = !hospitalizationConstraint;
       const resolvedTreatment = definitiveTreatmentAllowed
         ? resolveTreatmentByAvailability(treatment, availableCatalog)
         : { selected: null, fallbackUsed: false, unavailable: false };
 
-      const classification = getDiagnosis(rule);
+      const classification = compositeResult.primaryClassification;
       const severity = getSeverity(rule);
       const planRecommended = managementPlan.description || managementPlan.name || treatment.firstLine || '';
 
@@ -145,6 +185,9 @@ export const runRuleEngine = ({ rules = [], patientData, unmetPolicy = 'referenc
         classification,
         diagnosis: classification,
         severity,
+        morphology: compositeResult.secondaryClassification,
+        medullaryResponse: compositeResult.tertiaryClassification,
+        compositeResult,
         priority: Number(rule.priority || 0),
         planRecommended,
         managementPlan,
