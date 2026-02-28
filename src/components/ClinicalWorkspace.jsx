@@ -29,7 +29,7 @@ const WorkspaceContent = () => {
 
   const sections = {
     dashboard: <SystemDashboard filterText={searchTerm} />,
-    evaluacion: <ClinicalEvaluator />,
+    evaluacion: <ClinicalEvaluator onEditRelatedRules={() => setActiveSection('reglas')} />,
     reglas: <RuleEditor filterText={searchTerm} />,
     inventario: <InventoryManager />,
     auditoria: <AuditViewer />,

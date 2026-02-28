@@ -3,38 +3,59 @@ import useClinicalEngine from '../hooks/useClinicalEngine.js';
 import { useClinicalStore } from '../store/clinicalStore.jsx';
 import { useEstablishmentsStore } from '../store/establishmentsStore.jsx';
 import { useAuditStore } from '../store/auditStore.jsx';
+import { useDecisionLogStore } from '../store/decisionLogStore.jsx';
 import { buildAuditEntries } from '../audit/auditLogger.js';
 import ResponsibilityGate from './ResponsibilityGate.jsx';
 import { useAppModeStore } from '../store/appModeStore.jsx';
-import AutoCompleteInput from './AutoCompleteInput.jsx';
 import Card from './Card.jsx';
+import SeverityBadge from './SeverityBadge.jsx';
 
-const SYMPTOM_SUGGESTIONS = ['sed intensa', 'fiebre', 'palidez', 'diarrea', 'vómitos'];
-const SIGN_SUGGESTIONS = ['mucosas secas', 'ojos hundidos', 'llenado capilar lento', 'taquicardia'];
+const SIGN_OPTIONS = [
+  'mucosas secas',
+  'ojos hundidos',
+  'llenado capilar lento',
+  'taquicardia',
+  'hipotensión',
+  'letargo',
+  'pérdida de peso',
+  'sed intensa',
+];
 
 const createInitialPatient = () => ({
   edad: '',
   peso: '',
   sexo: 'F',
-  sintomas: '',
-  signos: '',
-  hemoglobina: '',
-  sodio: '',
+  selectedSigns: [],
+  labRows: [
+    { key: 'hemoglobina', value: '' },
+    { key: 'sodio', value: '' },
+  ],
 });
 
-const parseCsv = (value) =>
-  value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
+const normalizeLabRows = (rows) =>
+  rows.reduce((accumulator, row) => {
+    const key = row.key.trim();
+    if (!key) return accumulator;
+
+    const rawValue = row.value;
+    if (rawValue === '') {
+      accumulator[key] = undefined;
+      return accumulator;
+    }
+
+    const numericValue = Number(rawValue);
+    accumulator[key] = Number.isNaN(numericValue) ? rawValue : numericValue;
+    return accumulator;
+  }, {});
 
 /**
- * Evaluador clínico conectado a reglas + establecimiento activo.
+ * Evaluador clínico optimizado para ingreso rápido y lectura inmediata.
  */
-const ClinicalEvaluator = () => {
+const ClinicalEvaluator = ({ onEditRelatedRules = () => {} }) => {
   const { rules, evaluableRules, activeNtsVersion } = useClinicalStore();
   const { activeEstablishment } = useEstablishmentsStore();
-  const { addAuditEntries, addResponsibilityAcceptance } = useAuditStore();
+  const { addAuditEntries, addResponsibilityAcceptance, auditLogs } = useAuditStore();
+  const { addDecision } = useDecisionLogStore();
   const { isSimulation, isProduction } = useAppModeStore();
   const { evaluatePatient } = useClinicalEngine(evaluableRules);
 
@@ -43,18 +64,17 @@ const ClinicalEvaluator = () => {
   const [message, setMessage] = useState('');
   const [unmetPolicy, setUnmetPolicy] = useState('reference');
   const [responsibilityAccepted, setResponsibilityAccepted] = useState(false);
+  const [signSearch, setSignSearch] = useState('');
+  const [decisionMessage, setDecisionMessage] = useState('');
 
   const patientPreview = useMemo(
     () => ({
       edad: Number(patientForm.edad || 0),
       peso: Number(patientForm.peso || 0),
       sexo: patientForm.sexo,
-      sintomas: parseCsv(patientForm.sintomas),
-      signos: parseCsv(patientForm.signos),
-      laboratorio: {
-        hemoglobina: patientForm.hemoglobina === '' ? undefined : Number(patientForm.hemoglobina),
-        sodio: patientForm.sodio === '' ? undefined : Number(patientForm.sodio),
-      },
+      sintomas: [],
+      signos: patientForm.selectedSigns,
+      laboratorio: normalizeLabRows(patientForm.labRows),
       nivelResolutivo: activeEstablishment?.level || 'I-1',
       medicamentosDisponibles: activeEstablishment?.medicationsAvailable || [],
       equiposDisponibles: activeEstablishment?.equipmentAvailable || [],
@@ -62,8 +82,47 @@ const ClinicalEvaluator = () => {
     [patientForm, activeEstablishment],
   );
 
+  const filteredSignOptions = useMemo(() => {
+    const query = signSearch.trim().toLowerCase();
+    if (!query) return SIGN_OPTIONS;
+    return SIGN_OPTIONS.filter((sign) => sign.toLowerCase().includes(query));
+  }, [signSearch]);
+
   const updatePatientField = (field, value) => {
     setPatientForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const toggleSign = (sign) => {
+    setPatientForm((prev) => {
+      const alreadySelected = prev.selectedSigns.includes(sign);
+      return {
+        ...prev,
+        selectedSigns: alreadySelected
+          ? prev.selectedSigns.filter((item) => item !== sign)
+          : [...prev.selectedSigns, sign],
+      };
+    });
+  };
+
+  const updateLabRow = (index, field, value) => {
+    setPatientForm((prev) => ({
+      ...prev,
+      labRows: prev.labRows.map((row, rowIndex) => (rowIndex === index ? { ...row, [field]: value } : row)),
+    }));
+  };
+
+  const addLabRow = () => {
+    setPatientForm((prev) => ({
+      ...prev,
+      labRows: [...prev.labRows, { key: '', value: '' }],
+    }));
+  };
+
+  const removeLabRow = (index) => {
+    setPatientForm((prev) => ({
+      ...prev,
+      labRows: prev.labRows.filter((_, rowIndex) => rowIndex !== index),
+    }));
   };
 
   const evaluateNow = () => {
@@ -89,7 +148,6 @@ const ClinicalEvaluator = () => {
     const patientSnapshot = {
       edad: patientPreview.edad,
       peso: patientPreview.peso,
-      sintomas: patientPreview.sintomas,
       signos: patientPreview.signos,
       laboratorio: patientPreview.laboratorio,
     };
@@ -140,115 +198,214 @@ const ClinicalEvaluator = () => {
     }));
   }, [results, responsibilityAccepted]);
 
+  const primaryResult = gatedResults[0] || null;
+
+  const handleConfirmDecision = () => {
+    setDecisionMessage('');
+
+    if (isSimulation) {
+      setDecisionMessage('Modo simulación activo: la decisión no se guarda.');
+      return;
+    }
+
+    if (!primaryResult) {
+      setDecisionMessage('No hay resultado clínico para confirmar.');
+      return;
+    }
+
+    const latestAudit = auditLogs.find((entry) => entry.diagnosis) || null;
+
+    addDecision({
+      auditId: latestAudit?.auditId || '',
+      clinicianId: 'SIN_CLINICIAN_ID',
+      diagnosisSuggested: primaryResult.diagnosis || '',
+      diagnosisFinal: primaryResult.diagnosis || '',
+      treatmentSuggested: primaryResult.treatmentPlan?.selectedTreatment || '',
+      treatmentFinal: primaryResult.treatmentPlan?.selectedTreatment || '',
+      notes: 'Confirmación rápida desde Evaluación Clínica',
+      confirmedAt: new Date().toISOString(),
+    });
+
+    setDecisionMessage('Decisión clínica confirmada y enviada al Decision Log.');
+  };
+
   return (
     <section style={{ display: 'grid', gap: 12 }}>
-      <Card title="Evaluador clínico">
-        <div style={{ fontSize: 13, border: '1px solid #ddd', borderRadius: 8, padding: 8, background: '#fafafa' }}>
-          Modo actual: <strong>{isSimulation ? 'Simulación' : 'Producción'}</strong>
+      {message && (
+        <div style={{ border: '1px solid #f0c36d', background: '#fff8e5', borderRadius: 8, padding: 10 }}>
+          {message}
         </div>
-
-        {message && (
-          <div style={{ border: '1px solid #f0c36d', background: '#fff8e5', borderRadius: 8, padding: 10, marginTop: 8 }}>
-            {message}
-          </div>
-        )}
-
-        {Boolean(globalAlerts.length) && (
-          <section style={{ border: '1px solid #e39', background: '#fff0f5', borderRadius: 8, padding: 12, marginTop: 8 }}>
-            <h3 style={{ marginTop: 0 }}>Alertas de inventario/nivel resolutivo</h3>
-            <ul style={{ marginBottom: 0 }}>
-              {globalAlerts.map((alert, index) => (
-                <li key={`alert-${index}`}>{alert}</li>
-              ))}
-            </ul>
-          </section>
-        )}
-      </Card>
-
-      <Card title="Datos clínicos del paciente">
-        <section style={{ display: 'grid', gap: 8 }}>
-          <label>
-            Edad
-            <input type="number" value={patientForm.edad} onChange={(e) => updatePatientField('edad', e.target.value)} />
-          </label>
-
-          <label>
-            Peso (kg)
-            <input type="number" value={patientForm.peso} onChange={(e) => updatePatientField('peso', e.target.value)} />
-          </label>
-
-          <label>
-            Sexo
-            <select value={patientForm.sexo} onChange={(e) => updatePatientField('sexo', e.target.value)}>
-              <option value="F">F</option>
-              <option value="M">M</option>
-              <option value="Otro">Otro</option>
-            </select>
-          </label>
-
-          <label>
-            Síntomas (coma separados)
-            <AutoCompleteInput
-              listId="symptoms-ac"
-              suggestions={SYMPTOM_SUGGESTIONS}
-              value={patientForm.sintomas}
-              onChange={(value) => updatePatientField('sintomas', value)}
-            />
-          </label>
-
-          <label>
-            Signos (coma separados)
-            <AutoCompleteInput
-              listId="signs-ac"
-              suggestions={SIGN_SUGGESTIONS}
-              value={patientForm.signos}
-              onChange={(value) => updatePatientField('signos', value)}
-            />
-          </label>
-
-          <label>
-            Laboratorio - Hemoglobina
-            <input type="number" value={patientForm.hemoglobina} onChange={(e) => updatePatientField('hemoglobina', e.target.value)} />
-          </label>
-
-          <label>
-            Laboratorio - Sodio
-            <input type="number" value={patientForm.sodio} onChange={(e) => updatePatientField('sodio', e.target.value)} />
-          </label>
-
-          <label>
-            Política cuando no cumple recursos/nivel
-            <select value={unmetPolicy} onChange={(e) => setUnmetPolicy(e.target.value)}>
-              <option value="reference">Marcar como referencia</option>
-              <option value="exclude">Excluir regla</option>
-            </select>
-          </label>
-
-          <div style={{ fontSize: 13, color: '#444', background: '#f7f7f7', borderRadius: 6, padding: 8 }}>
-            Establecimiento activo: <strong>{activeEstablishment?.name || '-'}</strong> ({activeEstablishment?.id || '-'}) | Nivel:{' '}
-            <strong>{activeEstablishment?.level || '-'}</strong>
-          </div>
-
-          <button type="button" onClick={evaluateNow}>Ejecutar motor clínico</button>
-        </section>
-      </Card>
-
-      {Boolean(results.length) && isProduction && !responsibilityAccepted && (
-        <ResponsibilityGate
-          onConfirm={({ simulateMode }) => {
-            setResponsibilityAccepted(true);
-            if (!simulateMode) {
-              addResponsibilityAcceptance({ establishmentId: activeEstablishment?.id || '', simulateMode: false });
-            }
-          }}
-        />
       )}
 
-      <Card title="Resultado diagnóstico dinámico">
-        <pre style={{ background: '#f8f8f8', borderRadius: 8, padding: 12, overflowX: 'auto', margin: 0 }}>
-          {JSON.stringify(gatedResults, null, 2)}
-        </pre>
-      </Card>
+      {decisionMessage && (
+        <div style={{ border: '1px solid #dbe2ef', background: '#eef6ff', borderRadius: 8, padding: 10 }}>
+          {decisionMessage}
+        </div>
+      )}
+
+      <section
+        style={{
+          display: 'grid',
+          gap: 12,
+          gridTemplateColumns: 'minmax(420px, 1.25fr) minmax(320px, 1fr)',
+          alignItems: 'start',
+        }}
+      >
+        <Card title="Ingreso rápido del paciente">
+          <section style={{ display: 'grid', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(90px, 1fr))', gap: 8 }}>
+              <label>
+                Edad
+                <input type="number" value={patientForm.edad} onChange={(e) => updatePatientField('edad', e.target.value)} />
+              </label>
+
+              <label>
+                Peso (kg)
+                <input type="number" value={patientForm.peso} onChange={(e) => updatePatientField('peso', e.target.value)} />
+              </label>
+
+              <label>
+                Sexo
+                <select value={patientForm.sexo} onChange={(e) => updatePatientField('sexo', e.target.value)}>
+                  <option value="F">F</option>
+                  <option value="M">M</option>
+                  <option value="Otro">Otro</option>
+                </select>
+              </label>
+            </div>
+
+            <section style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 8, display: 'grid', gap: 8 }}>
+              <strong>Signos clínicos</strong>
+              <input
+                type="search"
+                value={signSearch}
+                onChange={(event) => setSignSearch(event.target.value)}
+                placeholder="Buscar signos..."
+              />
+
+              <div style={{ maxHeight: 170, overflowY: 'auto', display: 'grid', gap: 4, paddingRight: 4 }}>
+                {filteredSignOptions.map((sign) => (
+                  <label key={sign} style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }}>
+                    <input
+                      type="checkbox"
+                      checked={patientForm.selectedSigns.includes(sign)}
+                      onChange={() => toggleSign(sign)}
+                    />
+                    <span>{sign}</span>
+                  </label>
+                ))}
+              </div>
+            </section>
+
+            <section style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 8, display: 'grid', gap: 8 }}>
+              <strong>Laboratorio dinámico</strong>
+              {patientForm.labRows.map((row, index) => (
+                <div key={`lab-row-${index}`} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8 }}>
+                  <input
+                    value={row.key}
+                    placeholder="Parámetro (ej. hemoglobina)"
+                    onChange={(event) => updateLabRow(index, 'key', event.target.value)}
+                  />
+                  <input
+                    value={row.value}
+                    placeholder="Valor"
+                    onChange={(event) => updateLabRow(index, 'value', event.target.value)}
+                  />
+                  <button type="button" onClick={() => removeLabRow(index)} style={{ fontSize: 12 }}>
+                    Quitar
+                  </button>
+                </div>
+              ))}
+
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button type="button" onClick={addLabRow} style={{ fontSize: 12 }}>
+                  + Parámetro
+                </button>
+                <label>
+                  Política
+                  <select value={unmetPolicy} onChange={(e) => setUnmetPolicy(e.target.value)}>
+                    <option value="reference">Referencia</option>
+                    <option value="exclude">Excluir</option>
+                  </select>
+                </label>
+              </div>
+            </section>
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button type="button" onClick={evaluateNow}>Recalcular</button>
+              <button type="button" onClick={handleConfirmDecision}>Confirmar decisión</button>
+              <button type="button" onClick={onEditRelatedRules}>Editar reglas relacionadas</button>
+            </div>
+          </section>
+        </Card>
+
+        <Card title="Resultado clínico en tiempo real">
+          {!primaryResult ? (
+            <p style={{ margin: 0, color: '#6b7280' }}>Sin diagnóstico probable aún.</p>
+          ) : (
+            <section style={{ display: 'grid', gap: 8 }}>
+              <div style={{ fontSize: 13, color: '#4b5563' }}>Modo: {isSimulation ? 'Simulación' : 'Producción'}</div>
+              <div style={{ fontSize: '1.45rem', fontWeight: 800, lineHeight: 1.2 }}>
+                {primaryResult.diagnosis || 'Diagnóstico no disponible'}
+              </div>
+              <div>
+                <SeverityBadge severity={primaryResult.severity} />
+              </div>
+
+              <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 8 }}>
+                <strong>Tratamiento</strong>
+                <div style={{ marginTop: 4 }}>{primaryResult.treatmentPlan?.selectedTreatment || 'Sin selección'}</div>
+              </div>
+
+              <div
+                style={{
+                  border: '1px solid #bfdbfe',
+                  borderRadius: 8,
+                  padding: 10,
+                  background: '#eff6ff',
+                }}
+              >
+                <strong>Dosis destacada</strong>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>
+                  {primaryResult.treatmentPlan?.dosage?.description || 'No calculada'}
+                </div>
+              </div>
+
+              {Boolean(globalAlerts.length) && (
+                <section style={{ border: '1px solid #fcd34d', background: '#fff8e1', borderRadius: 8, padding: 8 }}>
+                  <strong>Alertas</strong>
+                  <ul style={{ margin: '6px 0 0 18px' }}>
+                    {globalAlerts.map((alert, index) => (
+                      <li key={`alert-${index}`}>{alert}</li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+              {primaryResult.requiresReferral && (
+                <section style={{ border: '1px solid #ef4444', background: '#fee2e2', borderRadius: 8, padding: 8 }}>
+                  <strong>Referencia requerida</strong>
+                  <div>{primaryResult.referralReason || primaryResult.referralCriteria}</div>
+                </section>
+              )}
+
+              {!responsibilityAccepted && isProduction && (
+                <ResponsibilityGate
+                  onConfirm={({ simulateMode }) => {
+                    setResponsibilityAccepted(true);
+                    if (!simulateMode) {
+                      addResponsibilityAcceptance({
+                        establishmentId: activeEstablishment?.id || '',
+                        simulateMode: false,
+                      });
+                    }
+                  }}
+                />
+              )}
+            </section>
+          )}
+        </Card>
+      </section>
     </section>
   );
 };
