@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import useClinicalEngine from '../hooks/useClinicalEngine.js';
 import { useClinicalStore } from '../store/clinicalStore.jsx';
 import { useEstablishmentsStore } from '../store/establishmentsStore.jsx';
+import { useNationalMedicationsStore } from '../store/nationalMedicationsStore.jsx';
 import { useAuditStore } from '../store/auditStore.jsx';
 import { useDecisionLogStore } from '../store/decisionLogStore.jsx';
 import { buildAuditEntries } from '../audit/auditLogger.js';
@@ -53,7 +54,8 @@ const normalizeLabRows = (rows) =>
  */
 const ClinicalEvaluator = ({ onEditRelatedRules = () => {} }) => {
   const { rules, evaluableRules, activeNtsVersion } = useClinicalStore();
-  const { activeEstablishment } = useEstablishmentsStore();
+  const { activeEstablishment, inventoryForActiveEstablishment } = useEstablishmentsStore();
+  const { activeNationalMedications } = useNationalMedicationsStore();
   const { addAuditEntries, addResponsibilityAcceptance, auditLogs } = useAuditStore();
   const { addDecision } = useDecisionLogStore();
   const { isSimulation, isProduction } = useAppModeStore();
@@ -75,11 +77,14 @@ const ClinicalEvaluator = ({ onEditRelatedRules = () => {} }) => {
       sintomas: [],
       signos: patientForm.selectedSigns,
       laboratorio: normalizeLabRows(patientForm.labRows),
+      establishmentId: activeEstablishment?.id || '',
       nivelResolutivo: activeEstablishment?.level || 'I-1',
       medicamentosDisponibles: activeEstablishment?.medicationsAvailable || [],
       equiposDisponibles: activeEstablishment?.equipmentAvailable || [],
+      nationalMedications: activeNationalMedications || [],
+      establishmentInventory: inventoryForActiveEstablishment || [],
     }),
-    [patientForm, activeEstablishment],
+    [patientForm, activeEstablishment, activeNationalMedications, inventoryForActiveEstablishment],
   );
 
   const filteredSignOptions = useMemo(() => {

@@ -99,6 +99,45 @@ describe('Clinical engine basics', () => {
       altitud: 650,
       nivelResolutivo: 'I-2',
       medicamentosDisponibles: ['Sulfato ferroso'],
+      establishmentId: 'EST-TEST',
+      nationalMedications: [
+        {
+          id: 'PNM-SF',
+          genericName: 'Sulfato ferroso',
+          concentration: '125 mg/5 mL',
+          pharmaceuticalForm: 'jarabe',
+          route: 'VO',
+          presentation: 'frasco x 120 mL',
+          active: true,
+        },
+        {
+          id: 'PNM-AF',
+          genericName: 'Ácido fólico',
+          concentration: '5 mg',
+          pharmaceuticalForm: 'tableta',
+          route: 'VO',
+          presentation: 'blíster x 10',
+          active: true,
+        },
+      ],
+      establishmentInventory: [
+        {
+          id: 'INV-1',
+          establishmentId: 'EST-TEST',
+          nationalMedicationId: 'PNM-SF',
+          stock: 10,
+          isAvailable: true,
+          lastUpdated: '2026-01-01T00:00:00.000Z',
+        },
+        {
+          id: 'INV-2',
+          establishmentId: 'EST-TEST',
+          nationalMedicationId: 'PNM-AF',
+          stock: 0,
+          isAvailable: false,
+          lastUpdated: '2026-01-01T00:00:00.000Z',
+        },
+      ],
     };
 
     const noneByLevel = runRuleEngine({ rules, patientData: patient });
@@ -124,6 +163,12 @@ describe('Clinical engine basics', () => {
     expect(resolved[0].compositeResult.secondaryClassification).toBe('Microcítica hipocrómica');
     expect(resolved[0].planRecommended).toBe('Control y suplementación');
     expect(resolved[0].medicationAvailable).toEqual(['Sulfato ferroso']);
+    expect(resolved[0].therapeuticMedications.recommended.map((item) => item.genericName)).toEqual([
+      'Sulfato ferroso',
+      'Ácido fólico',
+    ]);
+    expect(resolved[0].therapeuticMedications.available.map((item) => item.genericName)).toEqual(['Sulfato ferroso']);
+    expect(resolved[0].therapeuticMedications.unavailable.map((item) => item.genericName)).toEqual(['Ácido fólico']);
   });
 
   it('soporta síntomas, signos, laboratorio y select parasitológico con combinaciones AND/OR complejas', () => {
@@ -195,6 +240,45 @@ describe('Clinical engine basics', () => {
       nivelResolutivo: 'I-3',
       altitud: 200,
       medicamentosDisponibles: ['Sulfato ferroso'],
+      establishmentId: 'EST-TEST',
+      nationalMedications: [
+        {
+          id: 'PNM-SF',
+          genericName: 'Sulfato ferroso',
+          concentration: '125 mg/5 mL',
+          pharmaceuticalForm: 'jarabe',
+          route: 'VO',
+          presentation: 'frasco x 120 mL',
+          active: true,
+        },
+        {
+          id: 'PNM-AF',
+          genericName: 'Ácido fólico',
+          concentration: '5 mg',
+          pharmaceuticalForm: 'tableta',
+          route: 'VO',
+          presentation: 'blíster x 10',
+          active: true,
+        },
+      ],
+      establishmentInventory: [
+        {
+          id: 'INV-1',
+          establishmentId: 'EST-TEST',
+          nationalMedicationId: 'PNM-SF',
+          stock: 10,
+          isAvailable: true,
+          lastUpdated: '2026-01-01T00:00:00.000Z',
+        },
+        {
+          id: 'INV-2',
+          establishmentId: 'EST-TEST',
+          nationalMedicationId: 'PNM-AF',
+          stock: 0,
+          isAvailable: false,
+          lastUpdated: '2026-01-01T00:00:00.000Z',
+        },
+      ],
     };
 
     const matchedRules = evaluateRules(rules, patient);
@@ -204,6 +288,55 @@ describe('Clinical engine basics', () => {
     expect(engineResult).toHaveLength(1);
     expect(engineResult[0].classification).toBe('Anemia severa asociada a parasitosis');
     expect(engineResult[0].severity).toBe('severa');
+  });
+
+
+  it('retorna alerta cuando ningún medicamento sugerido está disponible en establecimiento', () => {
+    const rules = [
+      {
+        id: 'regla-alerta-disponibilidad',
+        priority: 1,
+        conditions: {
+          operator: 'AND',
+          conditions: [{ field: 'edad', label: 'Edad', type: 'number', operator: '>', value: 1 }],
+        },
+        specificMedications: ['Albendazol'],
+        result: { classification: 'Parasitosis probable', severity: 'leve' },
+      },
+    ];
+
+    const patient = {
+      edad: 10,
+      establishmentId: 'EST-ALERTA',
+      nivelResolutivo: 'I-2',
+      medicamentosDisponibles: [],
+      nationalMedications: [
+        {
+          id: 'PNM-ALB',
+          genericName: 'Albendazol',
+          concentration: '400 mg',
+          pharmaceuticalForm: 'tableta',
+          route: 'VO',
+          presentation: 'blíster x 1',
+          active: true,
+        },
+      ],
+      establishmentInventory: [
+        {
+          id: 'INV-ALB',
+          establishmentId: 'EST-ALERTA',
+          nationalMedicationId: 'PNM-ALB',
+          stock: 0,
+          isAvailable: false,
+          lastUpdated: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    };
+
+    const resolved = runRuleEngine({ rules, patientData: patient });
+    expect(resolved).toHaveLength(1);
+    expect(resolved[0].therapeuticMedications.available).toEqual([]);
+    expect(resolved[0].alerts).toContain('No disponible en establecimiento');
   });
 
   it('calcula dosis por peso con límite máximo', () => {

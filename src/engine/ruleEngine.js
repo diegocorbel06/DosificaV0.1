@@ -135,6 +135,49 @@ const matchesAltitudeConstraint = (rule, patientData, altitudeConfig) => {
   return patientAltitude <= maxMsnm;
 };
 
+const buildTherapeuticMedications = ({
+  specificMedications,
+  nationalMedications,
+  establishmentInventory,
+  establishmentId,
+  facilityLevel,
+  rule,
+}) => {
+  const normalizedSuggested = specificMedications.map((item) => normalizeText(item)).filter(Boolean);
+
+  const recommended = nationalMedications.filter((medication) => {
+    if (medication.active === false) return false;
+
+    const byName = normalizedSuggested.includes(normalizeText(medication.genericName));
+    const byId = normalizedSuggested.includes(normalizeText(medication.id));
+    return byName || byId;
+  });
+
+  const inventoryRows = establishmentInventory.filter((item) => item.establishmentId === establishmentId);
+  const levelAllowed = meetsAnyRequiredLevel(getRequiredLevels(rule), facilityLevel);
+
+  const available = recommended.filter((medication) => {
+    if (!levelAllowed) return false;
+
+    const inventoryMatch = inventoryRows.find((row) => row.nationalMedicationId === medication.id);
+    if (!inventoryMatch) return false;
+
+    return Boolean(inventoryMatch.isAvailable) && Number(inventoryMatch.stock) > 0;
+  });
+
+  const availableSet = new Set(available.map((item) => item.id));
+  const unavailable = recommended.filter((item) => !availableSet.has(item.id));
+
+  return {
+    recommended,
+    available,
+    unavailable,
+    noneAvailableAlert: recommended.length > 0 && available.length === 0
+      ? 'No disponible en establecimiento'
+      : '',
+  };
+};
+
 /**
  * Ejecuta reglas dinámicas y retorna recomendaciones clínicas integradas con inventario.
  */
@@ -167,6 +210,15 @@ export const runRuleEngine = ({ rules = [], patientData, unmetPolicy = 'referenc
         availableCatalog.map(normalizeText).includes(normalizeText(medication)),
       );
 
+      const therapeuticMedications = buildTherapeuticMedications({
+        specificMedications,
+        nationalMedications: toArray(patientData.nationalMedications),
+        establishmentInventory: toArray(patientData.establishmentInventory),
+        establishmentId: patientData.establishmentId,
+        facilityLevel: patientData.nivelResolutivo,
+        rule,
+      });
+
       const managementPlan = getManagementPlan(rule);
       const treatment = getTreatmentConfig(rule);
       const compositeResult = getCompositeResult(rule);
@@ -178,6 +230,12 @@ export const runRuleEngine = ({ rules = [], patientData, unmetPolicy = 'referenc
       const classification = compositeResult.primaryClassification;
       const severity = getSeverity(rule);
       const planRecommended = managementPlan.description || managementPlan.name || treatment.firstLine || '';
+
+      const aggregatedAlerts = [
+        hospitalizationConstraint ? 'Requiere hospitalización y establecimiento actual no puede resolver.' : null,
+        !medsOk ? 'No se cumplen medicamentos requeridos para el plan.' : null,
+        therapeuticMedications.noneAvailableAlert || null,
+      ].filter(Boolean);
 
       return {
         id: rule.id,
@@ -193,17 +251,19 @@ export const runRuleEngine = ({ rules = [], patientData, unmetPolicy = 'referenc
         managementPlan,
         specificMedications,
         medicationAvailable,
+        therapeuticMedications: {
+          recommended: therapeuticMedications.recommended,
+          available: therapeuticMedications.available,
+          unavailable: therapeuticMedications.unavailable,
+        },
         requiresReferral: hospitalizationConstraint || !medsOk,
         referralReason: hospitalizationConstraint
           ? 'Nivel resolutivo insuficiente para hospitalización.'
           : !medsOk
             ? 'Medicamentos específicos no disponibles en inventario activo.'
-            : '',
+            : therapeuticMedications.noneAvailableAlert || '',
         isReferral: hospitalizationConstraint || !medsOk,
-        alerts: [
-          hospitalizationConstraint ? 'Requiere hospitalización y establecimiento actual no puede resolver.' : null,
-          !medsOk ? 'No se cumplen medicamentos requeridos para el plan.' : null,
-        ].filter(Boolean),
+        alerts: aggregatedAlerts,
         treatmentPlan: {
           firstLine: treatment?.firstLine,
           alternative: treatment?.alternative,
