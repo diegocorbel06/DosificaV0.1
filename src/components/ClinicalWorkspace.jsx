@@ -8,7 +8,7 @@ import VersionControlPanel from './VersionControlPanel.jsx';
 import DecisionPanel from './DecisionPanel.jsx';
 import AppModeSelector from './AppModeSelector.jsx';
 import SystemDashboard from './SystemDashboard.jsx';
-import ClinicalVariablesManager from './ClinicalVariablesManager.jsx';
+import ClinicalVariableManager from './ClinicalVariableManager.jsx';
 import MainLayout from './MainLayout.jsx';
 import Sidebar from './Sidebar.jsx';
 import TopBar from './TopBar.jsx';
@@ -33,7 +33,7 @@ const WorkspaceContent = () => {
     dashboard: <SystemDashboard filterText={searchTerm} />,
     evaluacion: <ClinicalEvaluator onEditRelatedRules={() => setActiveSection('reglas')} />,
     reglas: <RuleEditor filterText={searchTerm} />,
-    variables: <ClinicalVariablesManager />,
+    variables: <ClinicalVariableManager />,
     inventario: <InventoryManager />,
     auditoria: <AuditViewer />,
     decisiones: <DecisionPanel />,

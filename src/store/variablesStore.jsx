@@ -72,8 +72,10 @@ export const VariablesStoreProvider = ({ children }) => {
     });
   };
 
+  const exportVariablesJson = () => JSON.stringify(variables, null, 2);
+
   const value = useMemo(
-    () => ({ variables, addVariable, updateVariable, removeVariable }),
+    () => ({ variables, addVariable, updateVariable, removeVariable, exportVariablesJson }),
     [variables],
   );
 
