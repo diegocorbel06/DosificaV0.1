@@ -6,6 +6,11 @@ import { useAuditStore } from '../store/auditStore.jsx';
 import { buildAuditEntries } from '../audit/auditLogger.js';
 import ResponsibilityGate from './ResponsibilityGate.jsx';
 import { useAppModeStore } from '../store/appModeStore.jsx';
+import AutoCompleteInput from './AutoCompleteInput.jsx';
+import Card from './Card.jsx';
+
+const SYMPTOM_SUGGESTIONS = ['sed intensa', 'fiebre', 'palidez', 'diarrea', 'vómitos'];
+const SIGN_SUGGESTIONS = ['mucosas secas', 'ojos hundidos', 'llenado capilar lento', 'taquicardia'];
 
 const createInitialPatient = () => ({
   edad: '',
@@ -130,136 +135,120 @@ const ClinicalEvaluator = () => {
       ...result,
       treatmentPlan: {
         blocked: true,
-        message:
-          'Plan terapéutico y dosis final bloqueados hasta confirmar responsabilidad clínica.',
+        message: 'Plan terapéutico y dosis final bloqueados hasta confirmar responsabilidad clínica.',
       },
     }));
   }, [results, responsibilityAccepted]);
 
   return (
     <section style={{ display: 'grid', gap: 12 }}>
-      <h2 style={{ marginBottom: 0 }}>Evaluador clínico</h2>
-
-      <div style={{ fontSize: 13, border: '1px solid #ddd', borderRadius: 8, padding: 8, background: '#fafafa' }}>
-        Modo actual: <strong>{isSimulation ? 'Simulación' : 'Producción'}</strong>
-      </div>
-
-      {message && (
-        <div style={{ border: '1px solid #f0c36d', background: '#fff8e5', borderRadius: 8, padding: 10 }}>
-          {message}
+      <Card title="Evaluador clínico">
+        <div style={{ fontSize: 13, border: '1px solid #ddd', borderRadius: 8, padding: 8, background: '#fafafa' }}>
+          Modo actual: <strong>{isSimulation ? 'Simulación' : 'Producción'}</strong>
         </div>
-      )}
 
-      {Boolean(globalAlerts.length) && (
-        <section style={{ border: '1px solid #e39', background: '#fff0f5', borderRadius: 8, padding: 12 }}>
-          <h3 style={{ marginTop: 0 }}>Alertas de inventario/nivel resolutivo</h3>
-          <ul style={{ marginBottom: 0 }}>
-            {globalAlerts.map((alert, index) => (
-              <li key={`alert-${index}`}>{alert}</li>
-            ))}
-          </ul>
+        {message && (
+          <div style={{ border: '1px solid #f0c36d', background: '#fff8e5', borderRadius: 8, padding: 10, marginTop: 8 }}>
+            {message}
+          </div>
+        )}
+
+        {Boolean(globalAlerts.length) && (
+          <section style={{ border: '1px solid #e39', background: '#fff0f5', borderRadius: 8, padding: 12, marginTop: 8 }}>
+            <h3 style={{ marginTop: 0 }}>Alertas de inventario/nivel resolutivo</h3>
+            <ul style={{ marginBottom: 0 }}>
+              {globalAlerts.map((alert, index) => (
+                <li key={`alert-${index}`}>{alert}</li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </Card>
+
+      <Card title="Datos clínicos del paciente">
+        <section style={{ display: 'grid', gap: 8 }}>
+          <label>
+            Edad
+            <input type="number" value={patientForm.edad} onChange={(e) => updatePatientField('edad', e.target.value)} />
+          </label>
+
+          <label>
+            Peso (kg)
+            <input type="number" value={patientForm.peso} onChange={(e) => updatePatientField('peso', e.target.value)} />
+          </label>
+
+          <label>
+            Sexo
+            <select value={patientForm.sexo} onChange={(e) => updatePatientField('sexo', e.target.value)}>
+              <option value="F">F</option>
+              <option value="M">M</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </label>
+
+          <label>
+            Síntomas (coma separados)
+            <AutoCompleteInput
+              listId="symptoms-ac"
+              suggestions={SYMPTOM_SUGGESTIONS}
+              value={patientForm.sintomas}
+              onChange={(value) => updatePatientField('sintomas', value)}
+            />
+          </label>
+
+          <label>
+            Signos (coma separados)
+            <AutoCompleteInput
+              listId="signs-ac"
+              suggestions={SIGN_SUGGESTIONS}
+              value={patientForm.signos}
+              onChange={(value) => updatePatientField('signos', value)}
+            />
+          </label>
+
+          <label>
+            Laboratorio - Hemoglobina
+            <input type="number" value={patientForm.hemoglobina} onChange={(e) => updatePatientField('hemoglobina', e.target.value)} />
+          </label>
+
+          <label>
+            Laboratorio - Sodio
+            <input type="number" value={patientForm.sodio} onChange={(e) => updatePatientField('sodio', e.target.value)} />
+          </label>
+
+          <label>
+            Política cuando no cumple recursos/nivel
+            <select value={unmetPolicy} onChange={(e) => setUnmetPolicy(e.target.value)}>
+              <option value="reference">Marcar como referencia</option>
+              <option value="exclude">Excluir regla</option>
+            </select>
+          </label>
+
+          <div style={{ fontSize: 13, color: '#444', background: '#f7f7f7', borderRadius: 6, padding: 8 }}>
+            Establecimiento activo: <strong>{activeEstablishment?.name || '-'}</strong> ({activeEstablishment?.id || '-'}) | Nivel:{' '}
+            <strong>{activeEstablishment?.level || '-'}</strong>
+          </div>
+
+          <button type="button" onClick={evaluateNow}>Ejecutar motor clínico</button>
         </section>
-      )}
-
-      <section style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12, display: 'grid', gap: 8 }}>
-        <h3 style={{ margin: 0 }}>Datos clínicos del paciente</h3>
-
-        <label>
-          Edad
-          <input type="number" value={patientForm.edad} onChange={(e) => updatePatientField('edad', e.target.value)} />
-        </label>
-
-        <label>
-          Peso (kg)
-          <input type="number" value={patientForm.peso} onChange={(e) => updatePatientField('peso', e.target.value)} />
-        </label>
-
-        <label>
-          Sexo
-          <select value={patientForm.sexo} onChange={(e) => updatePatientField('sexo', e.target.value)}>
-            <option value="F">F</option>
-            <option value="M">M</option>
-            <option value="Otro">Otro</option>
-          </select>
-        </label>
-
-        <label>
-          Síntomas (coma separados)
-          <input value={patientForm.sintomas} onChange={(e) => updatePatientField('sintomas', e.target.value)} />
-        </label>
-
-        <label>
-          Signos (coma separados)
-          <input value={patientForm.signos} onChange={(e) => updatePatientField('signos', e.target.value)} />
-        </label>
-
-        <label>
-          Laboratorio - Hemoglobina
-          <input
-            type="number"
-            value={patientForm.hemoglobina}
-            onChange={(e) => updatePatientField('hemoglobina', e.target.value)}
-          />
-        </label>
-
-        <label>
-          Laboratorio - Sodio
-          <input
-            type="number"
-            value={patientForm.sodio}
-            onChange={(e) => updatePatientField('sodio', e.target.value)}
-          />
-        </label>
-
-        <label>
-          Política cuando no cumple recursos/nivel
-          <select value={unmetPolicy} onChange={(e) => setUnmetPolicy(e.target.value)}>
-            <option value="reference">Marcar como referencia</option>
-            <option value="exclude">Excluir regla</option>
-          </select>
-        </label>
-
-        <div style={{ fontSize: 13, color: '#444', background: '#f7f7f7', borderRadius: 6, padding: 8 }}>
-          Establecimiento activo: <strong>{activeEstablishment?.name || '-'}</strong> ({activeEstablishment?.id || '-'})
-          {' '}| Nivel: <strong>{activeEstablishment?.level || '-'}</strong> | Medicamentos:{' '}
-          {activeEstablishment?.medicationsAvailable?.join(', ') || '-'} | Equipos:{' '}
-          {activeEstablishment?.equipmentAvailable?.join(', ') || '-'}
-        </div>
-
-        <button type="button" onClick={evaluateNow}>
-          Ejecutar motor clínico
-        </button>
-      </section>
+      </Card>
 
       {Boolean(results.length) && isProduction && !responsibilityAccepted && (
         <ResponsibilityGate
           onConfirm={({ simulateMode }) => {
             setResponsibilityAccepted(true);
-
             if (!simulateMode) {
-              addResponsibilityAcceptance({
-                establishmentId: activeEstablishment?.id || '',
-                simulateMode: false,
-              });
+              addResponsibilityAcceptance({ establishmentId: activeEstablishment?.id || '', simulateMode: false });
             }
           }}
         />
       )}
 
-      <section style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
-        <h3>Resultado diagnóstico dinámico</h3>
-        <pre
-          style={{
-            background: '#f8f8f8',
-            borderRadius: 8,
-            padding: 12,
-            overflowX: 'auto',
-            margin: 0,
-          }}
-        >
+      <Card title="Resultado diagnóstico dinámico">
+        <pre style={{ background: '#f8f8f8', borderRadius: 8, padding: 12, overflowX: 'auto', margin: 0 }}>
           {JSON.stringify(gatedResults, null, 2)}
         </pre>
-      </section>
+      </Card>
     </section>
   );
 };

@@ -4,14 +4,16 @@ import { useEstablishmentsStore } from '../store/establishmentsStore.jsx';
 import { useAppModeStore } from '../store/appModeStore.jsx';
 import { useAuditStore } from '../store/auditStore.jsx';
 import { useDecisionLogStore } from '../store/decisionLogStore.jsx';
-import StatusCard from './StatusCard.jsx';
-import DataTable from './DataTable.jsx';
+import Card from './Card.jsx';
+import SmartTable from './SmartTable.jsx';
+import SeverityBadge from './SeverityBadge.jsx';
+import LevelBadge from './LevelBadge.jsx';
+import StatusIcon from './StatusIcon.jsx';
 
 /**
  * Dashboard central de visualización del estado del sistema clínico.
- * Solo lectura (no modifica datos).
  */
-const SystemDashboard = () => {
+const SystemDashboard = ({ filterText = '' }) => {
   const { rules, evaluableRules, activeNtsVersion, versionSummary } = useClinicalStore();
   const { establishments, activeEstablishment } = useEstablishmentsStore();
   const { mode } = useAppModeStore();
@@ -29,120 +31,115 @@ const SystemDashboard = () => {
         severity: rule.severity,
         levelRequired: Array.isArray(rule.levelRequired)
           ? rule.levelRequired.join(', ')
-          : rule.levelRequired || rule.requiredCareLevel || '-',
+          : rule.levelRequired || '-',
         active: rule.active ? 'Activa' : 'Inactiva',
         ntsVersion: rule.ntsVersion || '-',
+        requiresHospitalization: rule.requiresHospitalization,
       })),
     [rules],
   );
 
   const auditRows = useMemo(
     () =>
-      latestAudit20
-        .filter((entry) => entry.diagnosis)
-        .map((entry) => ({
-          timestamp: entry.timestamp,
-          diagnosis: entry.diagnosis,
-          establishmentId: entry.establishmentId,
-          medication: entry.medication || '-',
-          referral: entry.referral ? 'Sí' : 'No',
-          auditId: entry.auditId,
-        })),
+      latestAudit20.map((entry) => ({
+        timestamp: entry.timestamp,
+        diagnosis: entry.diagnosis,
+        establishmentId: entry.establishmentId,
+        medication: entry.medication,
+        referral: entry.referral ? 'Sí' : 'No',
+      })),
     [latestAudit20],
   );
 
   const decisionRows = useMemo(
     () =>
-      latestDecisions20.map((entry) => ({
-        diagnosisSuggested: entry.diagnosisSuggested,
-        diagnosisFinal: entry.diagnosisFinal,
-        clinicianId: entry.clinicianId,
-        confirmedAt: entry.confirmedAt,
-        decisionId: entry.decisionId,
+      latestDecisions20.map((item) => ({
+        diagnosisSuggested: item.diagnosisSuggested,
+        diagnosisFinal: item.diagnosisFinal,
+        clinicianId: item.clinicianId || 'No autenticado',
+        confirmedAt: item.confirmedAt,
       })),
     [latestDecisions20],
   );
 
   return (
     <section style={{ display: 'grid', gap: 12 }}>
-      <h2 style={{ margin: 0 }}>System Dashboard</h2>
-
-      <section style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12, display: 'grid', gap: 10 }}>
-        <h3 style={{ margin: 0 }}>🔹 Sección 1 – Estado del Motor</h3>
-        <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
-          <StatusCard title="Total reglas activas" value={evaluableRules.length} subtitle="En versión global activa" />
-          <StatusCard title="Versión NTS activa" value={activeNtsVersion} subtitle={`Versiones cargadas: ${versionSummary.length}`} />
-          <StatusCard title="Modo del sistema" value={mode} subtitle="simulation | production" />
-          <StatusCard
-            title="Establecimiento activo"
-            value={activeEstablishment ? activeEstablishment.name : 'Sin establecimiento'}
-            subtitle={activeEstablishment ? `${activeEstablishment.id} (${activeEstablishment.level})` : '-'}
-          />
+      <Card title="🔹 Sección 1 – Estado del motor">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 10 }}>
+          <div>Total reglas activas: <strong>{evaluableRules.length}</strong></div>
+          <div>Versión NTS activa: <strong>{activeNtsVersion}</strong></div>
+          <div>Modo del sistema: <strong>{mode}</strong></div>
+          <div>Establecimiento activo: <strong>{activeEstablishment?.name || '-'}</strong></div>
+          <div>Establecimientos registrados: <strong>{establishments.length}</strong></div>
+          <div>Versiones NTS disponibles: <strong>{versionSummary.length}</strong></div>
         </div>
-      </section>
+      </Card>
 
-      <section style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12, display: 'grid', gap: 8 }}>
-        <h3 style={{ margin: 0 }}>🔹 Sección 2 – Inventario</h3>
-        {!activeEstablishment ? (
-          <p style={{ color: '#777', margin: 0 }}>No hay establecimiento activo.</p>
-        ) : (
-          <div style={{ display: 'grid', gap: 6 }}>
-            <div>
-              <strong>Nivel resolutivo:</strong> {activeEstablishment.level}
-            </div>
-            <div>
-              <strong>Medicamentos disponibles:</strong>{' '}
-              {activeEstablishment.medicationsAvailable.length
-                ? activeEstablishment.medicationsAvailable.join(', ')
-                : '-'}
-            </div>
-            <div>
-              <strong>Equipos disponibles:</strong>{' '}
-              {activeEstablishment.equipmentAvailable.length
-                ? activeEstablishment.equipmentAvailable.join(', ')
-                : '-'}
-            </div>
-            <div>
-              <strong>Establecimientos registrados:</strong> {establishments.length}
-            </div>
+      <Card title="🔹 Sección 2 – Inventario">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 180px', gap: 10 }}>
+          <div>
+            <strong>Medicamentos disponibles</strong>
+            <div style={{ fontSize: 13 }}>{activeEstablishment?.medicationsAvailable?.join(', ') || 'Sin registro'}</div>
           </div>
-        )}
-      </section>
+          <div>
+            <strong>Equipos disponibles</strong>
+            <div style={{ fontSize: 13 }}>{activeEstablishment?.equipmentAvailable?.join(', ') || 'Sin registro'}</div>
+          </div>
+          <div>
+            <strong>Nivel resolutivo</strong>
+            <div><LevelBadge level={activeEstablishment?.level} /></div>
+          </div>
+        </div>
+      </Card>
 
-      <section style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12, display: 'grid', gap: 8 }}>
-        <h3 style={{ margin: 0 }}>🔹 Sección 3 – Reglas</h3>
-        <DataTable
+      <Card title="🔹 Sección 3 – Reglas">
+        <SmartTable
+          filterText={filterText}
           columns={[
             { key: 'id', label: 'ID' },
             { key: 'pathology', label: 'Patología' },
-            { key: 'severity', label: 'Severidad' },
+            { key: 'severity', label: 'Severidad', render: (value) => <SeverityBadge severity={value} /> },
             { key: 'levelRequired', label: 'Nivel requerido' },
-            { key: 'active', label: 'Activa / Inactiva' },
+            { key: 'active', label: 'Estado' },
             { key: 'ntsVersion', label: 'Versión NTS' },
+            {
+              key: 'requiresHospitalization',
+              label: 'Estado clínico',
+              render: (_, row) => (
+                <StatusIcon
+                  requiresReferral={false}
+                  requiresHospitalization={Boolean(row.requiresHospitalization)}
+                />
+              ),
+            },
           ]}
           rows={ruleRows}
-          emptyMessage="No hay reglas cargadas."
+          emptyMessage="Sin reglas para mostrar."
         />
-      </section>
+      </Card>
 
-      <section style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12, display: 'grid', gap: 8 }}>
-        <h3 style={{ margin: 0 }}>🔹 Sección 4 – Auditoría (últimos 20)</h3>
-        <DataTable
+      <Card title="🔹 Sección 4 – Auditoría (últimos 20)">
+        <SmartTable
+          filterText={filterText}
           columns={[
             { key: 'timestamp', label: 'Fecha' },
             { key: 'diagnosis', label: 'Diagnóstico' },
             { key: 'establishmentId', label: 'Establecimiento' },
             { key: 'medication', label: 'Medicamento' },
-            { key: 'referral', label: 'Referencia (sí/no)' },
+            {
+              key: 'referral',
+              label: 'Referencia',
+              render: (value) => <StatusIcon requiresReferral={value === 'Sí'} requiresHospitalization={false} />,
+            },
           ]}
           rows={auditRows}
-          emptyMessage="Sin auditorías clínicas registradas."
+          emptyMessage="Sin registros de auditoría."
         />
-      </section>
+      </Card>
 
-      <section style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12, display: 'grid', gap: 8 }}>
-        <h3 style={{ margin: 0 }}>🔹 Sección 5 – Decisiones Médicas (últimas 20)</h3>
-        <DataTable
+      <Card title="🔹 Sección 5 – Decisiones médicas (últimas 20)">
+        <SmartTable
+          filterText={filterText}
           columns={[
             { key: 'diagnosisSuggested', label: 'Diagnóstico sugerido' },
             { key: 'diagnosisFinal', label: 'Diagnóstico final' },
@@ -152,7 +149,7 @@ const SystemDashboard = () => {
           rows={decisionRows}
           emptyMessage="Sin decisiones médicas confirmadas."
         />
-      </section>
+      </Card>
     </section>
   );
 };

@@ -1,13 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import ConditionBuilder from './ConditionBuilder.jsx';
 import RuleList from './RuleList.jsx';
+import AutoCompleteInput from './AutoCompleteInput.jsx';
+import Card from './Card.jsx';
 import { useClinicalStore } from '../store/clinicalStore.jsx';
 
-const PATHOLOGY_OPTIONS = [
-  { value: 'deshidratacion', label: 'Deshidratación' },
-  { value: 'anemia', label: 'Anemia' },
-  { value: 'parasitosis', label: 'Parasitosis intestinal' },
-];
+const PATHOLOGY_OPTIONS = ['deshidratacion', 'anemia', 'parasitosis'];
+const MEDICATION_SUGGESTIONS = ['SRO', 'ClNa 0.9%', 'Sulfato ferroso', 'Hierro polimaltosado', 'Albendazol'];
 
 const createEmptyRule = () => ({
   id: '',
@@ -32,10 +31,16 @@ const createEmptyRule = () => ({
   referralCriteria: '',
 });
 
+const parseCommaSeparated = (text) =>
+  text
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
 /**
  * Editor visual conectado a store global.
  */
-const RuleEditor = () => {
+const RuleEditor = ({ filterText = '' }) => {
   const { rules, addRule, updateRule, removeRule, replaceRules } = useClinicalStore();
 
   const [formRule, setFormRule] = useState(createEmptyRule());
@@ -44,6 +49,16 @@ const RuleEditor = () => {
   const [formError, setFormError] = useState('');
 
   const generatedJson = useMemo(() => JSON.stringify(rules, null, 2), [rules]);
+
+  const filteredRules = useMemo(() => {
+    const query = filterText.trim().toLowerCase();
+    if (!query) return rules;
+    return rules.filter((rule) =>
+      [rule.id, rule.pathology, rule.diagnosis, rule.severity].some((field) =>
+        String(field || '').toLowerCase().includes(query),
+      ),
+    );
+  }, [rules, filterText]);
 
   const updateRuleField = (field, value) => {
     setFormRule((prev) => ({ ...prev, [field]: value }));
@@ -58,12 +73,6 @@ const RuleEditor = () => {
       },
     }));
   };
-
-  const parseCommaSeparated = (text) =>
-    text
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean);
 
   const validateRule = (rule) => {
     if (!rule.id.trim()) return 'El ID de la regla es obligatorio.';
@@ -145,97 +154,68 @@ const RuleEditor = () => {
 
   return (
     <section style={{ display: 'grid', gap: 12 }}>
-      <h2 style={{ marginBottom: 0 }}>Editor de reglas clínicas</h2>
-
       {formError && (
-        <div
-          style={{
-            border: '1px solid #e39',
-            background: '#fff0f5',
-            color: '#701',
-            padding: 10,
-            borderRadius: 8,
-          }}
-        >
+        <div style={{ border: '1px solid #e39', background: '#fff0f5', color: '#701', padding: 10, borderRadius: 8 }}>
           {formError}
         </div>
       )}
 
-      <section
-        style={{
-          border: '1px solid #ddd',
-          borderRadius: 8,
-          padding: 12,
-          display: 'grid',
-          gap: 10,
-        }}
-      >
-        <h3 style={{ margin: 0 }}>{editingIndex !== null ? 'Editar regla' : 'Nueva regla clínica'}</h3>
-
-        <label>
-          ID de regla
-          <input
-            type="text"
-            value={formRule.id}
-            onChange={(e) => updateRuleField('id', e.target.value)}
-            placeholder="ej: deshidratacion_moderada_adulto"
-          />
-        </label>
-
-        <label>
-          Patología
-          <select
-            value={formRule.pathology}
-            onChange={(e) => updateRuleField('pathology', e.target.value)}
-          >
-            {PATHOLOGY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <ConditionBuilder
-          conditions={formRule.conditions}
-          onChange={(conditions) => updateRuleField('conditions', conditions)}
-        />
-
-        <label>
-          Diagnóstico probable
-          <input
-            type="text"
-            value={formRule.diagnosis}
-            onChange={(e) => updateRuleField('diagnosis', e.target.value)}
-          />
-        </label>
-
-        <label>
-          Clasificación de gravedad
-          <input
-            type="text"
-            value={formRule.severity}
-            onChange={(e) => updateRuleField('severity', e.target.value)}
-          />
-        </label>
-
-        <section style={{ border: '1px solid #ddd', borderRadius: 8, padding: 10 }}>
-          <h4>Tratamiento</h4>
+      <Card title={editingIndex !== null ? 'Editar regla clínica' : 'Nueva regla clínica'}>
+        <section style={{ display: 'grid', gap: 10 }}>
           <label>
-            Medicamento de elección
+            ID de regla
             <input
               type="text"
-              value={formRule.treatment.firstLine}
-              onChange={(e) => updateTreatmentField('firstLine', e.target.value)}
+              value={formRule.id}
+              onChange={(e) => updateRuleField('id', e.target.value)}
+              placeholder="ej: deshidratacion_moderada_adulto"
             />
           </label>
 
           <label>
-            Alternativa
-            <input
-              type="text"
+            Patología
+            <AutoCompleteInput
+              listId="pathology-options"
+              suggestions={PATHOLOGY_OPTIONS}
+              value={formRule.pathology}
+              onChange={(value) => updateRuleField('pathology', value)}
+            />
+          </label>
+
+          <ConditionBuilder
+            conditions={formRule.conditions}
+            onChange={(conditions) => updateRuleField('conditions', conditions)}
+          />
+
+          <label>
+            Diagnóstico probable
+            <input type="text" value={formRule.diagnosis} onChange={(e) => updateRuleField('diagnosis', e.target.value)} />
+          </label>
+
+          <label>
+            Clasificación de gravedad
+            <input type="text" value={formRule.severity} onChange={(e) => updateRuleField('severity', e.target.value)} />
+          </label>
+
+          <h4 style={{ marginBottom: 0 }}>Tratamiento</h4>
+
+          <label>
+            Medicamento de elección
+            <AutoCompleteInput
+              listId="med-first-line"
+              suggestions={MEDICATION_SUGGESTIONS}
+              value={formRule.treatment.firstLine}
+              onChange={(value) => updateTreatmentField('firstLine', value)}
+            />
+          </label>
+
+          <label>
+            Alternativa terapéutica
+            <AutoCompleteInput
+              listId="med-alternative"
+              suggestions={MEDICATION_SUGGESTIONS}
               value={formRule.treatment.alternative}
-              onChange={(e) => updateTreatmentField('alternative', e.target.value)}
+              onChange={(value) => updateTreatmentField('alternative', value)}
             />
           </label>
 
@@ -245,105 +225,85 @@ const RuleEditor = () => {
               type="text"
               value={formRule.treatment.doseFormula}
               onChange={(e) => updateTreatmentField('doseFormula', e.target.value)}
-              placeholder="Ej: 75 ml * peso"
+              placeholder="ej: 75 ml * peso"
             />
           </label>
 
           <label>
-            Indicaciones (separadas por coma)
+            Indicaciones (coma separadas)
             <input
               type="text"
               value={formRule.treatment.indications.join(', ')}
-              onChange={(e) =>
-                updateTreatmentField('indications', parseCommaSeparated(e.target.value))
-              }
+              onChange={(e) => updateTreatmentField('indications', parseCommaSeparated(e.target.value))}
+              placeholder="ej: Rehidratar, Reevaluar"
             />
           </label>
+
+          <label>
+            Nivel resolutivo requerido
+            <select value={formRule.levelRequired} onChange={(e) => updateRuleField('levelRequired', e.target.value)}>
+              <option value="I-1">I-1</option>
+              <option value="I-2">I-2</option>
+              <option value="I-3">I-3</option>
+              <option value="I-4">I-4</option>
+            </select>
+          </label>
+
+          <label>
+            Medicamentos necesarios (coma separados)
+            <input
+              type="text"
+              value={formRule.requiredMedications.join(', ')}
+              onChange={(e) => updateRuleField('requiredMedications', parseCommaSeparated(e.target.value))}
+              placeholder="ej: SRO, Zinc"
+            />
+          </label>
+
+          <label>
+            Criterios de referencia
+            <textarea value={formRule.referralCriteria} onChange={(e) => updateRuleField('referralCriteria', e.target.value)} />
+          </label>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button type="button" onClick={handleSaveRule}>
+              {editingIndex !== null ? 'Actualizar regla' : 'Guardar regla'}
+            </button>
+
+            {editingIndex !== null && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFormRule(createEmptyRule());
+                  setEditingIndex(null);
+                  setFormError('');
+                }}
+              >
+                Cancelar edición
+              </button>
+            )}
+          </div>
         </section>
+      </Card>
 
-        <label>
-          Nivel resolutivo requerido
-          <select
-            value={formRule.levelRequired}
-            onChange={(e) => updateRuleField('levelRequired', e.target.value)}
-          >
-            <option value="I-1">I-1</option>
-            <option value="I-2">I-2</option>
-            <option value="I-3">I-3</option>
-            <option value="I-4">I-4</option>
-          </select>
-        </label>
-
-        <label>
-          Medicamentos necesarios (separados por coma)
-          <input
-            type="text"
-            value={formRule.requiredMedications.join(', ')}
-            onChange={(e) => updateRuleField('requiredMedications', parseCommaSeparated(e.target.value))}
-          />
-        </label>
-
-        <label>
-          Criterios de referencia
+      <Card title="Gestión de reglas (JSON)">
+        <section style={{ display: 'grid', gap: 10 }}>
           <textarea
-            rows={3}
-            value={formRule.referralCriteria}
-            onChange={(e) => updateRuleField('referralCriteria', e.target.value)}
+            value={jsonImportText}
+            onChange={(e) => setJsonImportText(e.target.value)}
+            rows={6}
+            placeholder="Pega aquí un array JSON de reglas para importar"
           />
-        </label>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button type="button" onClick={handleImportJson}>Importar JSON</button>
+            <button type="button" onClick={handleExportJson}>Exportar JSON</button>
+          </div>
+          <pre style={{ background: '#f8f8f8', borderRadius: 8, padding: 10, margin: 0, overflowX: 'auto' }}>
+            {generatedJson}
+          </pre>
+        </section>
+      </Card>
 
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" onClick={handleSaveRule}>
-            {editingIndex !== null ? 'Guardar cambios' : 'Crear regla'}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setFormRule(createEmptyRule());
-              setEditingIndex(null);
-              setFormError('');
-            }}
-          >
-            Limpiar
-          </button>
-        </div>
-      </section>
-
-      <RuleList rules={rules} onEdit={handleEditRule} onDelete={handleDeleteRule} />
-
-      <section style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
-        <h3>Importar reglas JSON</h3>
-        <textarea
-          rows={6}
-          style={{ width: '100%' }}
-          value={jsonImportText}
-          onChange={(e) => setJsonImportText(e.target.value)}
-          placeholder='Pega aquí un array JSON: [{"id":"...", ...}]'
-        />
-        <div style={{ marginTop: 8 }}>
-          <button type="button" onClick={handleImportJson}>
-            Importar JSON
-          </button>
-        </div>
-      </section>
-
-      <section style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
-        <h3>JSON generado en tiempo real</h3>
-        <button type="button" onClick={handleExportJson}>
-          Exportar reglas en JSON
-        </button>
-        <pre
-          style={{
-            background: '#f8f8f8',
-            padding: 12,
-            overflowX: 'auto',
-            borderRadius: 8,
-            marginTop: 10,
-          }}
-        >
-          {generatedJson}
-        </pre>
-      </section>
+      <RuleList rules={filteredRules} onEdit={handleEditRule} onDelete={handleDeleteRule} />
     </section>
   );
 };
