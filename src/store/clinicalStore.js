@@ -7,13 +7,22 @@ import {
   getVersionSummary,
   setVersionActiveState,
 } from '../engine/versionManager.js';
+import defaultRulesJson from '../data/defaultRules.json';
 
 const ClinicalStoreContext = createContext(null);
 
 const DEFAULT_VERSION = 'NTS-2024';
 
+const buildInitialRules = () =>
+  defaultRulesJson.map((rule) =>
+    ensureRuleVersionMetadata(rule, {
+      defaultVersion: rule.ntsVersion || DEFAULT_VERSION,
+      preserveCreatedAt: true,
+    }),
+  );
+
 export const ClinicalStoreProvider = ({ children }) => {
-  const [rules, setRules] = useState([]);
+  const [rules, setRules] = useState(buildInitialRules);
   const [activeNtsVersion, setActiveNtsVersion] = useState(DEFAULT_VERSION);
 
   const addRule = (rule) => {
