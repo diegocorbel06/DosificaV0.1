@@ -8,6 +8,7 @@ import VersionControlPanel from './VersionControlPanel.jsx';
 import DecisionPanel from './DecisionPanel.jsx';
 import AppModeSelector from './AppModeSelector.jsx';
 import SystemDashboard from './SystemDashboard.jsx';
+import ClinicalVariablesManager from './ClinicalVariablesManager.jsx';
 import MainLayout from './MainLayout.jsx';
 import Sidebar from './Sidebar.jsx';
 import TopBar from './TopBar.jsx';
@@ -16,6 +17,7 @@ import { EstablishmentsStoreProvider, useEstablishmentsStore } from '../store/es
 import { AuditStoreProvider } from '../store/auditStore.jsx';
 import { DecisionLogStoreProvider } from '../store/decisionLogStore.jsx';
 import { AppModeStoreProvider, useAppModeStore } from '../store/appModeStore.jsx';
+import { VariablesStoreProvider } from '../store/variablesStore.jsx';
 
 const WorkspaceContent = () => {
   const { mode } = useAppModeStore();
@@ -31,6 +33,7 @@ const WorkspaceContent = () => {
     dashboard: <SystemDashboard filterText={searchTerm} />,
     evaluacion: <ClinicalEvaluator onEditRelatedRules={() => setActiveSection('reglas')} />,
     reglas: <RuleEditor filterText={searchTerm} />,
+    variables: <ClinicalVariablesManager />,
     inventario: <InventoryManager />,
     auditoria: <AuditViewer />,
     decisiones: <DecisionPanel />,
@@ -41,14 +44,8 @@ const WorkspaceContent = () => {
   return (
     <MainLayout
       compactMode={compactMode}
-      sidebar={
-        <Sidebar
-          activeSection={activeSection}
-          onSelectSection={setActiveSection}
-          collapsed={sidebarCollapsed}
-        />
-      }
-      topbar={
+      sidebar={<Sidebar activeSection={activeSection} onSelectSection={setActiveSection} collapsed={sidebarCollapsed} />}
+      topbar={(
         <TopBar
           mode={mode}
           activeNtsVersion={activeNtsVersion}
@@ -59,7 +56,7 @@ const WorkspaceContent = () => {
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
         />
-      }
+      )}
     >
       <AppModeSelector />
       {sections[activeSection]}
@@ -73,15 +70,17 @@ const WorkspaceContent = () => {
 const ClinicalWorkspace = () => {
   return (
     <AppModeStoreProvider>
-      <ClinicalStoreProvider>
-        <EstablishmentsStoreProvider>
-          <AuditStoreProvider>
-            <DecisionLogStoreProvider>
-              <WorkspaceContent />
-            </DecisionLogStoreProvider>
-          </AuditStoreProvider>
-        </EstablishmentsStoreProvider>
-      </ClinicalStoreProvider>
+      <VariablesStoreProvider>
+        <ClinicalStoreProvider>
+          <EstablishmentsStoreProvider>
+            <AuditStoreProvider>
+              <DecisionLogStoreProvider>
+                <WorkspaceContent />
+              </DecisionLogStoreProvider>
+            </AuditStoreProvider>
+          </EstablishmentsStoreProvider>
+        </ClinicalStoreProvider>
+      </VariablesStoreProvider>
     </AppModeStoreProvider>
   );
 };

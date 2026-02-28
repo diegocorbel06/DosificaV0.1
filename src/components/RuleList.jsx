@@ -45,10 +45,10 @@ const RuleList = ({ rules, onEdit, onDelete }) => {
               </div>
 
               <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" onClick={() => onEdit(index)}>
+                <button type="button" onClick={() => onEdit(rule)}>
                   Editar
                 </button>
-                <button type="button" onClick={() => onDelete(index)}>
+                <button type="button" onClick={() => onDelete(rule)}>
                   Eliminar
                 </button>
               </div>
