@@ -99,3 +99,15 @@ src/
 - Versionado de NTS
 - Auditoría de decisiones
 - Exportación PDF de indicaciones
+
+---
+
+## ▶️ Ejemplo funcional (deshidratación)
+
+Ejecuta:
+
+```bash
+node --experimental-default-type=module src/engine/example.js
+```
+
+Salida esperada: diagnóstico de deshidratación moderada, severidad, tratamiento seleccionado por disponibilidad y dosis automática calculada por peso.

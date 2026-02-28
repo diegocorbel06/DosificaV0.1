@@ -1,0 +1,58 @@
+import React from 'react';
+
+/**
+ * Lista simple y escalable de reglas clínicas cargadas desde estado global.
+ */
+const RuleList = ({ rules, onEdit, onDelete }) => {
+  if (!rules.length) {
+    return (
+      <section style={{ border: '1px solid #ddd', padding: 12, borderRadius: 8 }}>
+        <h3>Reglas registradas</h3>
+        <p style={{ color: '#777' }}>Aún no hay reglas creadas.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section style={{ border: '1px solid #ddd', padding: 12, borderRadius: 8 }}>
+      <h3>Reglas registradas ({rules.length})</h3>
+      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+        {rules.map((rule, index) => (
+          <li
+            key={rule.id || `${rule.pathology}-${index}`}
+            style={{
+              borderBottom: '1px solid #efefef',
+              padding: '10px 0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              gap: 12,
+            }}
+          >
+            <div>
+              <strong>{rule.diagnosis || 'Sin diagnóstico'}</strong>
+              <div style={{ fontSize: 13, color: '#555' }}>
+                Patología: {rule.pathology || '-'} | Severidad: {rule.severity || '-'}
+              </div>
+              <div style={{ fontSize: 12, color: '#777' }}>
+                Condiciones: {rule.conditions?.length || 0} | Nivel requerido:{' '}
+                {rule.levelRequired || rule.requiredCareLevel || '-'} | Versión: {rule.ntsVersion || '-'} |
+                Activa: {String(rule.active)}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={() => onEdit(index)}>
+                Editar
+              </button>
+              <button type="button" onClick={() => onDelete(index)}>
+                Eliminar
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+};
+
+export default RuleList;
