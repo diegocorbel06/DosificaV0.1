@@ -8,8 +8,17 @@
     "route": "VO",
     "presentation": "frasco x 120 mL",
     "minsaCategory": "Antianémicos",
-    "indications": ["Anemia ferropénica", "Suplementación de hierro"],
-    "active": true
+    "indications": [
+      "Anemia ferropénica",
+      "Suplementación de hierro"
+    ],
+    "active": true,
+    "allowedLevels": [
+      "I-1",
+      "I-2",
+      "I-3",
+      "I-4"
+    ]
   },
   {
     "id": "PNM-002",
@@ -20,8 +29,17 @@
     "route": "VO",
     "presentation": "blíster x 1 tableta",
     "minsaCategory": "Antiparasitarios",
-    "indications": ["Geohelmintiasis", "Parasitosis intestinal"],
-    "active": true
+    "indications": [
+      "Geohelmintiasis",
+      "Parasitosis intestinal"
+    ],
+    "active": true,
+    "allowedLevels": [
+      "I-1",
+      "I-2",
+      "I-3",
+      "I-4"
+    ]
   },
   {
     "id": "PNM-003",
@@ -32,7 +50,16 @@
     "route": "VO",
     "presentation": "blíster x 10 tabletas",
     "minsaCategory": "Analgésicos",
-    "indications": ["Dolor leve a moderado", "Fiebre"],
-    "active": true
+    "indications": [
+      "Dolor leve a moderado",
+      "Fiebre"
+    ],
+    "active": true,
+    "allowedLevels": [
+      "I-1",
+      "I-2",
+      "I-3",
+      "I-4"
+    ]
   }
 ]

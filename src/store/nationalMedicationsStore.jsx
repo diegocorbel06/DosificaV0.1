@@ -20,6 +20,11 @@ const normalizeMedication = (item) => ({
     : typeof item.indications === 'string'
       ? item.indications.split(';').map((entry) => normalizeText(entry)).filter(Boolean)
       : [],
+  allowedLevels: Array.isArray(item.allowedLevels)
+    ? item.allowedLevels.map((entry) => normalizeText(entry)).filter(Boolean)
+    : typeof item.allowedLevels === 'string'
+      ? item.allowedLevels.split(';').map((entry) => normalizeText(entry)).filter(Boolean)
+      : ['I-1', 'I-2', 'I-3', 'I-4'],
   active: item.active !== false,
   source: item.source || 'base',
 });
@@ -58,6 +63,7 @@ const csvToRows = (csvText) => {
       ...row,
       id: row.id || `CSV-${Date.now()}-${index + 1}`,
       indications: row.indications ? row.indications.split(';') : [],
+      allowedLevels: row.allowedLevels ? row.allowedLevels.split(';') : ['I-1', 'I-2', 'I-3', 'I-4'],
       active: row.active ? String(row.active).toLowerCase() !== 'false' : true,
       source: 'imported',
     });

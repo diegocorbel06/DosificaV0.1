@@ -116,6 +116,13 @@ const getTreatmentConfig = (rule) => {
   return {};
 };
 
+
+const isMedicationAllowedForLevel = (medication, facilityLevel) => {
+  const allowedLevels = toArray(medication?.allowedLevels);
+  if (!allowedLevels.length) return true;
+  return allowedLevels.includes(facilityLevel);
+};
+
 const matchesAltitudeConstraint = (rule, patientData, altitudeConfig) => {
   const patientAltitude = Number(patientData.altitud ?? patientData.altitude ?? 0);
   const maxMsnm = Number(altitudeConfig?.maxMsnm ?? 500);
@@ -147,6 +154,7 @@ const buildTherapeuticMedications = ({
 
   const recommended = nationalMedications.filter((medication) => {
     if (medication.active === false) return false;
+    if (!isMedicationAllowedForLevel(medication, facilityLevel)) return false;
 
     const byName = normalizedSuggested.includes(normalizeText(medication.genericName));
     const byId = normalizedSuggested.includes(normalizeText(medication.id));

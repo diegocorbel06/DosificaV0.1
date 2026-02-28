@@ -109,6 +109,7 @@ describe('Clinical engine basics', () => {
           route: 'VO',
           presentation: 'frasco x 120 mL',
           active: true,
+          allowedLevels: ['I-1', 'I-2', 'I-3', 'I-4'],
         },
         {
           id: 'PNM-AF',
@@ -118,6 +119,7 @@ describe('Clinical engine basics', () => {
           route: 'VO',
           presentation: 'blíster x 10',
           active: true,
+          allowedLevels: ['I-1', 'I-2', 'I-3', 'I-4'],
         },
       ],
       establishmentInventory: [
@@ -250,6 +252,7 @@ describe('Clinical engine basics', () => {
           route: 'VO',
           presentation: 'frasco x 120 mL',
           active: true,
+          allowedLevels: ['I-1', 'I-2', 'I-3', 'I-4'],
         },
         {
           id: 'PNM-AF',
@@ -259,6 +262,7 @@ describe('Clinical engine basics', () => {
           route: 'VO',
           presentation: 'blíster x 10',
           active: true,
+          allowedLevels: ['I-1', 'I-2', 'I-3', 'I-4'],
         },
       ],
       establishmentInventory: [
@@ -319,6 +323,7 @@ describe('Clinical engine basics', () => {
           route: 'VO',
           presentation: 'blíster x 1',
           active: true,
+          allowedLevels: ['I-1', 'I-2', 'I-3', 'I-4'],
         },
       ],
       establishmentInventory: [
@@ -337,6 +342,75 @@ describe('Clinical engine basics', () => {
     expect(resolved).toHaveLength(1);
     expect(resolved[0].therapeuticMedications.available).toEqual([]);
     expect(resolved[0].alerts).toContain('No disponible en establecimiento');
+  });
+
+
+  it('no sugiere medicamentos no permitidos para el nivel resolutivo activo', () => {
+    const rules = [
+      {
+        id: 'regla-nivel-medicamento',
+        priority: 1,
+        conditions: {
+          operator: 'AND',
+          conditions: [{ field: 'edad', label: 'Edad', type: 'number', operator: '>', value: 1 }],
+        },
+        specificMedications: ['Albendazol', 'Sulfato ferroso'],
+        result: { classification: 'Manejo antiparasitario', severity: 'leve' },
+      },
+    ];
+
+    const patient = {
+      edad: 12,
+      establishmentId: 'EST-LVL',
+      nivelResolutivo: 'I-1',
+      medicamentosDisponibles: ['Albendazol', 'Sulfato ferroso'],
+      nationalMedications: [
+        {
+          id: 'PNM-ALB',
+          genericName: 'Albendazol',
+          concentration: '400 mg',
+          pharmaceuticalForm: 'tableta',
+          route: 'VO',
+          presentation: 'blíster x 1',
+          active: true,
+          allowedLevels: ['I-3', 'I-4'],
+        },
+        {
+          id: 'PNM-SF',
+          genericName: 'Sulfato ferroso',
+          concentration: '125 mg/5 mL',
+          pharmaceuticalForm: 'jarabe',
+          route: 'VO',
+          presentation: 'frasco x 120 mL',
+          active: true,
+          allowedLevels: ['I-1', 'I-2', 'I-3', 'I-4'],
+        },
+      ],
+      establishmentInventory: [
+        {
+          id: 'INV-ALB',
+          establishmentId: 'EST-LVL',
+          nationalMedicationId: 'PNM-ALB',
+          stock: 20,
+          isAvailable: true,
+          lastUpdated: '2026-01-01T00:00:00.000Z',
+        },
+        {
+          id: 'INV-SF',
+          establishmentId: 'EST-LVL',
+          nationalMedicationId: 'PNM-SF',
+          stock: 20,
+          isAvailable: true,
+          lastUpdated: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    };
+
+    const resolved = runRuleEngine({ rules, patientData: patient });
+    expect(resolved).toHaveLength(1);
+    expect(resolved[0].therapeuticMedications.recommended.map((item) => item.genericName)).toEqual(['Sulfato ferroso']);
+    expect(resolved[0].therapeuticMedications.available.map((item) => item.genericName)).toEqual(['Sulfato ferroso']);
+    expect(resolved[0].therapeuticMedications.unavailable).toEqual([]);
   });
 
   it('calcula dosis por peso con límite máximo', () => {
