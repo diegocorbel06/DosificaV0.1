@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAppModeStore } from '../store/appModeStore.jsx';
 
 /**
@@ -6,9 +6,27 @@ import { useAppModeStore } from '../store/appModeStore.jsx';
  */
 const AppModeSelector = () => {
   const { mode, setMode, isSimulation, isProduction } = useAppModeStore();
+  const [modePulse, setModePulse] = useState(false);
+
+  useEffect(() => {
+    setModePulse(true);
+    const timer = setTimeout(() => setModePulse(false), 260);
+    return () => clearTimeout(timer);
+  }, [mode]);
 
   return (
-    <section style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12, display: 'grid', gap: 8 }}>
+    <section
+      style={{
+        border: '1px solid #ddd',
+        borderRadius: 8,
+        padding: 12,
+        display: 'grid',
+        gap: 8,
+        transition: 'background-color 180ms ease, border-color 180ms ease',
+        background: modePulse ? '#f8fbff' : '#fff',
+        borderColor: modePulse ? '#93c5fd' : '#ddd',
+      }}
+    >
       <h2 style={{ margin: 0 }}>Modo de aplicación</h2>
 
       <label>

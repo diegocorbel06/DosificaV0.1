@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import ConditionBuilder from './ConditionBuilder.jsx';
 import RuleList from './RuleList.jsx';
 import AutoCompleteInput from './AutoCompleteInput.jsx';
@@ -47,6 +47,8 @@ const RuleEditor = ({ filterText = '' }) => {
   const [editingIndex, setEditingIndex] = useState(null);
   const [jsonImportText, setJsonImportText] = useState('');
   const [formError, setFormError] = useState('');
+  const [saveStatus, setSaveStatus] = useState('idle');
+  const [lastSavedAt, setLastSavedAt] = useState(null);
 
   const generatedJson = useMemo(() => JSON.stringify(rules, null, 2), [rules]);
 
@@ -59,6 +61,17 @@ const RuleEditor = ({ filterText = '' }) => {
       ),
     );
   }, [rules, filterText]);
+
+  useEffect(() => {
+    if (saveStatus !== 'saved') return undefined;
+    const timer = setTimeout(() => setSaveStatus('idle'), 2200);
+    return () => clearTimeout(timer);
+  }, [saveStatus]);
+
+  useEffect(() => {
+    if (saveStatus === 'saved') return;
+    setSaveStatus('draft');
+  }, [formRule]);
 
   const updateRuleField = (field, value) => {
     setFormRule((prev) => ({ ...prev, [field]: value }));
@@ -111,12 +124,15 @@ const RuleEditor = ({ filterText = '' }) => {
     }
 
     setFormRule(createEmptyRule());
+    setSaveStatus('saved');
+    setLastSavedAt(new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
   };
 
   const handleEditRule = (index) => {
     setFormRule(rules[index]);
     setEditingIndex(index);
     setFormError('');
+    setSaveStatus('draft');
   };
 
   const handleDeleteRule = (index) => {
@@ -126,6 +142,9 @@ const RuleEditor = ({ filterText = '' }) => {
       setFormRule(createEmptyRule());
       setEditingIndex(null);
     }
+
+    setSaveStatus('saved');
+    setLastSavedAt(new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
   };
 
   const handleExportJson = () => {
@@ -147,6 +166,8 @@ const RuleEditor = ({ filterText = '' }) => {
       }
       replaceRules(parsed);
       setFormError('');
+      setSaveStatus('saved');
+      setLastSavedAt(new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch {
       setFormError('JSON inválido. Verifica formato y vuelve a intentar.');
     }
@@ -159,6 +180,23 @@ const RuleEditor = ({ filterText = '' }) => {
           {formError}
         </div>
       )}
+
+      <div
+        style={{
+          border: '1px solid #dbe2ef',
+          background: saveStatus === 'saved' ? '#ecfdf3' : '#f8fafc',
+          color: '#334155',
+          borderRadius: 8,
+          padding: 8,
+          fontSize: 12,
+          transition: 'background-color 180ms ease, border-color 180ms ease',
+        }}
+      >
+        {saveStatus === 'saved' && '✓ Cambios guardados correctamente.'}
+        {saveStatus === 'draft' && '⏺ Cambios en borrador. Guardado automático pendiente de confirmación.'}
+        {saveStatus === 'idle' && 'Editor listo para nuevos cambios.'}
+        {lastSavedAt && <span style={{ marginLeft: 8 }}>Último guardado: {lastSavedAt}</span>}
+      </div>
 
       <Card title={editingIndex !== null ? 'Editar regla clínica' : 'Nueva regla clínica'}>
         <section style={{ display: 'grid', gap: 10 }}>
@@ -276,6 +314,7 @@ const RuleEditor = ({ filterText = '' }) => {
                   setFormRule(createEmptyRule());
                   setEditingIndex(null);
                   setFormError('');
+                  setSaveStatus('idle');
                 }}
               >
                 Cancelar edición

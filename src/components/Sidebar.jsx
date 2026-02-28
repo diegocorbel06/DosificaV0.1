@@ -2,14 +2,14 @@ import React from 'react';
 import styles from './MainLayout.module.css';
 
 export const NAV_ITEMS = [
-  { id: 'dashboard', label: 'Estado general', icon: '📊' },
-  { id: 'evaluacion', label: 'Evaluación clínica', icon: '🩺' },
-  { id: 'reglas', label: 'Editor de reglas', icon: '📘' },
-  { id: 'inventario', label: 'Inventario', icon: '💊' },
-  { id: 'auditoria', label: 'Auditoría', icon: '🧾' },
-  { id: 'decisiones', label: 'Decisiones médicas', icon: '👩‍⚕️' },
-  { id: 'versionado', label: 'Versionado', icon: '🧬' },
-  { id: 'establecimientos', label: 'Establecimientos', icon: '🏥' },
+  { id: 'dashboard', label: 'Estado general', icon: '📊', tooltip: 'Resumen del estado clínico del sistema' },
+  { id: 'evaluacion', label: 'Evaluación clínica', icon: '🩺', tooltip: 'Evaluar paciente y generar plan sugerido' },
+  { id: 'reglas', label: 'Editor de reglas', icon: '📘', tooltip: 'Crear, editar e importar reglas clínicas' },
+  { id: 'inventario', label: 'Inventario', icon: '💊', tooltip: 'Medicamentos, equipos y nivel resolutivo' },
+  { id: 'auditoria', label: 'Auditoría', icon: '🧾', tooltip: 'Histórico de ejecuciones del motor' },
+  { id: 'decisiones', label: 'Decisiones médicas', icon: '👩‍⚕️', tooltip: 'Confirmaciones y ajustes clínicos' },
+  { id: 'versionado', label: 'Versionado', icon: '🧬', tooltip: 'Gestión de versiones NTS' },
+  { id: 'establecimientos', label: 'Establecimientos', icon: '🏥', tooltip: 'Seleccionar sede activa' },
 ];
 
 const Sidebar = ({ activeSection, onSelectSection, collapsed }) => {
@@ -28,7 +28,9 @@ const Sidebar = ({ activeSection, onSelectSection, collapsed }) => {
             className={`${styles.navItem} ${activeSection === item.id ? styles.navItemActive : ''}`}
             onClick={() => onSelectSection(item.id)}
           >
-            <span>{item.icon}</span>
+            <span className={styles.iconWithTooltip} title={item.tooltip} aria-label={item.tooltip}>
+              {item.icon}
+            </span>
             <span>{item.label}</span>
           </button>
         ))}

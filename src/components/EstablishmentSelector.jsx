@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useEstablishmentsStore } from '../store/establishmentsStore.jsx';
 
 /**
@@ -15,10 +15,35 @@ const EstablishmentSelector = () => {
   const [newId, setNewId] = useState('');
   const [newName, setNewName] = useState('');
   const [newLevel, setNewLevel] = useState('I-1');
+  const [pulse, setPulse] = useState(false);
+
+  const activeName = useMemo(
+    () => establishments.find((item) => item.id === activeEstablishmentId)?.name || '-',
+    [establishments, activeEstablishmentId],
+  );
+
+  useEffect(() => {
+    setPulse(true);
+    const timer = setTimeout(() => setPulse(false), 300);
+    return () => clearTimeout(timer);
+  }, [activeEstablishmentId]);
 
   return (
-    <section style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12, display: 'grid', gap: 8 }}>
+    <section
+      style={{
+        border: '1px solid #ddd',
+        borderRadius: 8,
+        padding: 12,
+        display: 'grid',
+        gap: 8,
+        transition: 'transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease',
+        transform: pulse ? 'translateY(-1px)' : 'translateY(0)',
+        borderColor: pulse ? '#93c5fd' : '#ddd',
+        boxShadow: pulse ? '0 0 0 2px rgba(147,197,253,0.2)' : 'none',
+      }}
+    >
       <h2 style={{ marginBottom: 0 }}>Establecimiento activo</h2>
+      <div style={{ fontSize: 12, color: '#4b5563' }>Actual: {activeName}</div>
 
       <label>
         Seleccionar establecimiento

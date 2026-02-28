@@ -47,6 +47,12 @@
   border: 1px solid #dbe2ef;
   border-radius: 12px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.card:hover {
+  border-color: #c9d5ea;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
 }
 
 .cardHeader {
@@ -72,11 +78,23 @@
   align-items: center;
   gap: 8px;
   font-size: 0.92rem;
+  transition: background-color 140ms ease, border-left-color 140ms ease;
+}
+
+.navItem:hover {
+  background: #16243d;
 }
 
 .navItemActive {
   background: #1e293b;
   border-left: 3px solid #2f6fed;
+}
+
+.iconWithTooltip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
 }
 
 .compact .content {
