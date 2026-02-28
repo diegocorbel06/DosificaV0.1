@@ -5,7 +5,15 @@ const DEFAULT_PAGE_SIZE = 20;
 /**
  * Tabla compacta con ordenamiento, filtro y paginación.
  */
-const SmartTable = ({ columns, rows, emptyMessage = 'Sin datos.', filterText = '', pageSize = DEFAULT_PAGE_SIZE }) => {
+const SmartTable = ({
+  columns,
+  rows,
+  emptyMessage = 'Sin datos.',
+  filterText = '',
+  pageSize = DEFAULT_PAGE_SIZE,
+  maxHeight = 360,
+  compact = false,
+}) => {
   const [sortKey, setSortKey] = useState(columns[0]?.key || '');
   const [sortDirection, setSortDirection] = useState('asc');
   const [page, setPage] = useState(1);
@@ -52,14 +60,17 @@ const SmartTable = ({ columns, rows, emptyMessage = 'Sin datos.', filterText = '
     return <p style={{ color: '#6b7280', margin: 0 }}>{emptyMessage}</p>;
   }
 
+  const padding = compact ? 6 : 8;
+  const fontSize = compact ? 12 : 13;
+
   return (
     <section style={{ display: 'grid', gap: 8 }}>
-      <div style={{ overflowX: 'auto', maxHeight: 360, border: '1px solid #dbe2ef', borderRadius: 8 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+      <div style={{ overflowX: 'auto', maxHeight, border: '1px solid #dbe2ef', borderRadius: 8 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize }}>
           <thead style={{ position: 'sticky', top: 0, background: '#eef2ff' }}>
             <tr>
               {columns.map((column) => (
-                <th key={column.key} style={{ textAlign: 'left', padding: 8, whiteSpace: 'nowrap' }}>
+                <th key={column.key} style={{ textAlign: 'left', padding, whiteSpace: 'nowrap' }}>
                   <button
                     type="button"
                     onClick={() => onSort(column.key)}
@@ -67,7 +78,7 @@ const SmartTable = ({ columns, rows, emptyMessage = 'Sin datos.', filterText = '
                       border: 'none',
                       background: 'transparent',
                       cursor: 'pointer',
-                      fontSize: 12,
+                      fontSize: compact ? 11 : 12,
                       fontWeight: 700,
                     }}
                   >
@@ -81,7 +92,7 @@ const SmartTable = ({ columns, rows, emptyMessage = 'Sin datos.', filterText = '
             {currentRows.map((row, rowIndex) => (
               <tr key={`${rowIndex}-${row.id || rowIndex}`}>
                 {columns.map((column) => (
-                  <td key={`${column.key}-${rowIndex}`} style={{ borderTop: '1px solid #e5e7eb', padding: 8 }}>
+                  <td key={`${column.key}-${rowIndex}`} style={{ borderTop: '1px solid #e5e7eb', padding }}>
                     {column.render ? column.render(row[column.key], row) : row[column.key] ?? '-'}
                   </td>
                 ))}

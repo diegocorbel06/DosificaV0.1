@@ -105,3 +105,4 @@ node --experimental-default-type=module src/engine/example.js
 
 
 Vista de inventario: `src/components/InventoryDashboard.jsx` (buscador, filtros por vía/forma y disponibilidad).
+- InventoryDashboard incluye tabla compacta con scroll vertical, buscador con autocompletado, chips de vía (VO/IV/IM), indicador de disponibilidad por color y exportación de inventario.
