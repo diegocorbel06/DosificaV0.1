@@ -1,4 +1,4 @@
-import { evaluateRule } from './ruleEvaluator.js';
+import { evaluateRules } from './ruleEvaluator.js';
 import { calculateDosage } from './dosageCalculator.js';
 import { isResourceAvailable, normalizeText } from '../utils/helpers.js';
 
@@ -16,11 +16,34 @@ const CARE_LEVEL_RANK = {
 const toArray = (value) => (Array.isArray(value) ? value : value ? [value] : []);
 
 /**
- * Soporta levelRequired como string legacy o array nuevo.
+ * Soporta levelRequired legacy y levelRestriction (nuevo RuleDefinition).
  */
 const getRequiredLevels = (rule) => {
-  const levelField = rule.levelRequired ?? rule.requiredCareLevel;
+  const levelField = rule.levelRestriction ?? rule.levelRequired ?? rule.requiredCareLevel;
   return toArray(levelField);
+};
+
+const getPathology = (rule) => rule.pathology || rule.pathologyId || 'general';
+
+const getDiagnosis = (rule) => rule.diagnosis || rule.result?.classification || rule.name || 'Sin clasificación';
+
+const getSeverity = (rule) => rule.severity || rule.result?.severity || '';
+
+const getTreatmentConfig = (rule) => {
+  if (rule.treatment) return rule.treatment;
+
+  if (rule.managementPlan) return rule.managementPlan;
+
+  if (rule.managementPlanId) {
+    return {
+      firstLine: rule.managementPlanId,
+      alternative: '',
+      doseFormula: '',
+      indications: [],
+    };
+  }
+
+  return {};
 };
 
 /**
@@ -110,9 +133,7 @@ const buildAlerts = ({ levelOk, medsOk, hospitalizationConstraint, requiredLevel
  * }} params
  */
 export const runRuleEngine = ({ rules = [], patientData, unmetPolicy = 'reference' }) => {
-  return rules
-    .filter((rule) => rule.active !== false)
-    .filter((rule) => evaluateRule(rule, patientData))
+  return evaluateRules(rules, patientData)
     .map((rule) => {
       const requiredLevels = getRequiredLevels(rule);
       const levelOk = meetsAnyRequiredLevel(requiredLevels, patientData.nivelResolutivo);
@@ -138,29 +159,31 @@ export const runRuleEngine = ({ rules = [], patientData, unmetPolicy = 'referenc
       const alerts = buildAlerts({ levelOk, medsOk, hospitalizationConstraint, requiredLevels });
 
       const definitiveTreatmentAllowed = !hospitalizationConstraint;
+      const treatment = getTreatmentConfig(rule);
       const resolvedTreatment = definitiveTreatmentAllowed
-        ? resolveTreatmentByAvailability(rule.treatment, patientData.medicamentosDisponibles)
+        ? resolveTreatmentByAvailability(treatment, patientData.medicamentosDisponibles)
         : { selected: null, fallbackUsed: false, unavailable: false };
 
       return {
         id: rule.id,
-        pathology: rule.pathology,
-        diagnosis: rule.diagnosis,
-        severity: rule.severity,
+        pathology: getPathology(rule),
+        diagnosis: getDiagnosis(rule),
+        severity: getSeverity(rule),
+        priority: Number(rule.priority || 0),
         requiresReferral,
         referralReason,
         isReferral: requiresReferral,
         alerts,
         treatmentPlan: {
-          firstLine: rule.treatment?.firstLine,
-          alternative: rule.treatment?.alternative,
+          firstLine: treatment?.firstLine,
+          alternative: treatment?.alternative,
           definitiveTreatmentAllowed,
           selectedTreatment: resolvedTreatment.selected,
           usedAlternative: resolvedTreatment.fallbackUsed,
           unavailableMedication: resolvedTreatment.unavailable,
           requiredResourcesAvailable: medsOk,
           dosage: definitiveTreatmentAllowed
-            ? calculateDosage(rule.treatment?.dose || rule.treatment?.doseFormula, patientData)
+            ? calculateDosage(treatment?.dose || treatment?.doseFormula, patientData)
             : {
                 dosisFinal: null,
                 frecuencia: '',
@@ -169,7 +192,7 @@ export const runRuleEngine = ({ rules = [], patientData, unmetPolicy = 'referenc
                 description: 'Derivar a mayor nivel para manejo definitivo.',
                 value: null,
               },
-          indications: rule.treatment?.indications || [],
+          indications: treatment?.indications || [],
           outpatientAllowed: rule.outpatientAllowed !== false,
           requiresHospitalization: Boolean(rule.requiresHospitalization),
         },

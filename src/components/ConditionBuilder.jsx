@@ -2,7 +2,6 @@ import React from 'react';
 
 /**
  * Opciones base para construir condiciones clínicas.
- * Se exportan para facilitar escalabilidad y reutilización.
  */
 export const FIELD_OPTIONS = [
   { value: 'edad', label: 'Edad' },
@@ -18,17 +17,25 @@ export const FIELD_OPTIONS = [
 ];
 
 export const OPERATOR_OPTIONS = [
-  { value: 'greaterThan', label: '>' },
-  { value: 'lessThan', label: '<' },
-  { value: 'equals', label: '=' },
+  { value: '>', label: '>' },
+  { value: '<', label: '<' },
+  { value: '>=', label: '>=' },
+  { value: '<=', label: '<=' },
+  { value: '=', label: '=' },
+  { value: '!=', label: '!=' },
   { value: 'includes', label: 'includes' },
   { value: 'notIncludes', label: 'not includes' },
 ];
 
 /**
- * Builder dinámico para una lista de condiciones.
+ * Builder dinámico para una lista de condiciones (grupo lógico superior AND/OR).
  */
-const ConditionBuilder = ({ conditions, onChange }) => {
+const ConditionBuilder = ({
+  conditions,
+  onChange,
+  groupOperator = 'AND',
+  onGroupOperatorChange,
+}) => {
   const updateCondition = (index, key, value) => {
     const next = [...conditions];
     next[index] = { ...next[index], [key]: value };
@@ -40,8 +47,10 @@ const ConditionBuilder = ({ conditions, onChange }) => {
       ...conditions,
       {
         field: 'edad',
-        operator: 'greaterThan',
+        operator: '>',
         value: '',
+        label: 'Edad',
+        type: 'number',
       },
     ]);
   };
@@ -54,8 +63,18 @@ const ConditionBuilder = ({ conditions, onChange }) => {
     <section style={{ border: '1px solid #ddd', padding: 12, borderRadius: 8 }}>
       <h3>Condiciones clínicas</h3>
       <p style={{ marginTop: 0, color: '#555' }}>
-        Define múltiples condiciones (todas deben cumplirse).
+        Define condiciones con operador lógico global (AND/OR).
       </p>
+
+      {typeof onGroupOperatorChange === 'function' && (
+        <label style={{ display: 'grid', gap: 4, marginBottom: 10 }}>
+          Operador lógico del grupo
+          <select value={groupOperator} onChange={(event) => onGroupOperatorChange(event.target.value)}>
+            <option value="AND">AND</option>
+            <option value="OR">OR</option>
+          </select>
+        </label>
+      )}
 
       {conditions.map((condition, index) => (
         <div
@@ -70,7 +89,11 @@ const ConditionBuilder = ({ conditions, onChange }) => {
         >
           <select
             value={condition.field}
-            onChange={(e) => updateCondition(index, 'field', e.target.value)}
+            onChange={(e) => {
+              const selected = FIELD_OPTIONS.find((option) => option.value === e.target.value);
+              updateCondition(index, 'field', e.target.value);
+              updateCondition(index, 'label', selected?.label || e.target.value);
+            }}
             aria-label={`Campo condición ${index + 1}`}
           >
             {FIELD_OPTIONS.map((option) => (
