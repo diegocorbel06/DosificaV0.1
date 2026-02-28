@@ -1,13 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { useEstablishmentsStore } from '../store/establishmentsStore.jsx';
+import { useNationalMedicationsStore } from '../store/nationalMedicationsStore.jsx';
 import AutoCompleteInput from './AutoCompleteInput.jsx';
 import Card from './Card.jsx';
 
-const KNOWN_MEDICATIONS = ['SRO', 'ClNa 0.9%', 'Sulfato ferroso', 'Albendazol', 'Paracetamol'];
 const KNOWN_EQUIPMENT = ['venoclisis', 'balanza pediátrica', 'oxímetro', 'cama hospitalaria'];
 
 /**
  * Editor del inventario del establecimiento activo.
+ * Separa explícitamente el inventario local del petitorio nacional.
  */
 const InventoryManager = () => {
   const {
@@ -18,14 +19,17 @@ const InventoryManager = () => {
     addEquipmentToActive,
     removeEquipmentFromActive,
   } = useEstablishmentsStore();
+  const { activeNationalMedications } = useNationalMedicationsStore();
 
   const [newMedication, setNewMedication] = useState('');
   const [newEquipment, setNewEquipment] = useState('');
+  const [message, setMessage] = useState('');
 
   const medicationOptions = useMemo(
-    () => Array.from(new Set([...KNOWN_MEDICATIONS, ...(activeEstablishment?.medicationsAvailable || [])])),
-    [activeEstablishment],
+    () => Array.from(new Set(activeNationalMedications.map((item) => item.genericName))),
+    [activeNationalMedications],
   );
+
   const equipmentOptions = useMemo(
     () => Array.from(new Set([...KNOWN_EQUIPMENT, ...(activeEstablishment?.equipmentAvailable || [])])),
     [activeEstablishment],
@@ -36,7 +40,12 @@ const InventoryManager = () => {
   }
 
   return (
-    <Card title="Inventario clínico editable">
+    <Card title="Inventario del establecimiento">
+      <div style={{ fontSize: 12, marginBottom: 8 }}>
+        Inventario local independiente del petitorio nacional. Solo se agregan medicamentos activos del petitorio.
+      </div>
+      {message && <div style={{ fontSize: 12, color: '#0369a1', marginBottom: 8 }}>{message}</div>}
+
       <section style={{ display: 'grid', gap: 10 }}>
         <label>
           ID del establecimiento
@@ -44,7 +53,7 @@ const InventoryManager = () => {
         </label>
 
         <label>
-          Nombre del establecimiento
+          Nombre
           <input value={activeEstablishment.name} onChange={(e) => updateActiveField('name', e.target.value)} />
         </label>
 
@@ -58,21 +67,26 @@ const InventoryManager = () => {
           </select>
         </label>
 
-        <section style={{ border: '1px solid #eee', borderRadius: 8, padding: 10 }}>
-          <h3 style={{ marginTop: 0 }}>Medicamentos disponibles</h3>
-          <div style={{ display: 'flex', gap: 8 }}>
+        <section>
+          <h4 style={{ marginBottom: 6 }}>Medicamentos disponibles (inventario local)</h4>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <AutoCompleteInput
               listId="inventory-medications"
               value={newMedication}
               onChange={setNewMedication}
               suggestions={medicationOptions}
-              placeholder="Ej: SRO"
+              placeholder="Buscar medicamento del petitorio"
             />
             <button
               type="button"
               onClick={() => {
+                if (!medicationOptions.includes(newMedication)) {
+                  setMessage('Seleccione un medicamento activo del petitorio nacional.');
+                  return;
+                }
                 addMedicationToActive(newMedication);
                 setNewMedication('');
+                setMessage('Medicamento agregado al inventario local.');
               }}
               style={{ fontSize: 12 }}
             >
@@ -92,15 +106,15 @@ const InventoryManager = () => {
           </ul>
         </section>
 
-        <section style={{ border: '1px solid #eee', borderRadius: 8, padding: 10 }}>
-          <h3 style={{ marginTop: 0 }}>Equipos disponibles</h3>
-          <div style={{ display: 'flex', gap: 8 }}>
+        <section>
+          <h4 style={{ marginBottom: 6 }}>Equipamiento disponible</h4>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <AutoCompleteInput
               listId="inventory-equipment"
               value={newEquipment}
               onChange={setNewEquipment}
               suggestions={equipmentOptions}
-              placeholder="Ej: venoclisis"
+              placeholder="Equipo"
             />
             <button
               type="button"

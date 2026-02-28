@@ -9,6 +9,7 @@ import DecisionPanel from './DecisionPanel.jsx';
 import AppModeSelector from './AppModeSelector.jsx';
 import SystemDashboard from './SystemDashboard.jsx';
 import ClinicalVariableManager from './ClinicalVariableManager.jsx';
+import NationalMedicationManager from './NationalMedicationManager.jsx';
 import MainLayout from './MainLayout.jsx';
 import Sidebar from './Sidebar.jsx';
 import TopBar from './TopBar.jsx';
@@ -18,6 +19,7 @@ import { AuditStoreProvider } from '../store/auditStore.jsx';
 import { DecisionLogStoreProvider } from '../store/decisionLogStore.jsx';
 import { AppModeStoreProvider, useAppModeStore } from '../store/appModeStore.jsx';
 import { VariablesStoreProvider } from '../store/variablesStore.jsx';
+import { NationalMedicationsStoreProvider } from '../store/nationalMedicationsStore.jsx';
 
 const WorkspaceContent = () => {
   const { mode } = useAppModeStore();
@@ -35,6 +37,7 @@ const WorkspaceContent = () => {
     reglas: <RuleEditor filterText={searchTerm} />,
     variables: <ClinicalVariableManager />,
     inventario: <InventoryManager />,
+    petitorio: <NationalMedicationManager />,
     auditoria: <AuditViewer />,
     decisiones: <DecisionPanel />,
     versionado: <VersionControlPanel />,
@@ -71,15 +74,17 @@ const ClinicalWorkspace = () => {
   return (
     <AppModeStoreProvider>
       <VariablesStoreProvider>
-        <ClinicalStoreProvider>
-          <EstablishmentsStoreProvider>
-            <AuditStoreProvider>
-              <DecisionLogStoreProvider>
-                <WorkspaceContent />
-              </DecisionLogStoreProvider>
-            </AuditStoreProvider>
-          </EstablishmentsStoreProvider>
-        </ClinicalStoreProvider>
+        <NationalMedicationsStoreProvider>
+          <ClinicalStoreProvider>
+            <EstablishmentsStoreProvider>
+              <AuditStoreProvider>
+                <DecisionLogStoreProvider>
+                  <WorkspaceContent />
+                </DecisionLogStoreProvider>
+              </AuditStoreProvider>
+            </EstablishmentsStoreProvider>
+          </ClinicalStoreProvider>
+        </NationalMedicationsStoreProvider>
       </VariablesStoreProvider>
     </AppModeStoreProvider>
   );

@@ -7,6 +7,7 @@ export const NAV_ITEMS = [
   { id: 'reglas', label: 'Editor de reglas', icon: '📘', tooltip: 'Crear, editar e importar reglas clínicas' },
   { id: 'variables', label: 'Variables clínicas', icon: '🧪', tooltip: 'Catálogo dinámico de variables clínicas' },
   { id: 'inventario', label: 'Inventario', icon: '💊', tooltip: 'Medicamentos, equipos y nivel resolutivo' },
+  { id: 'petitorio', label: 'Petitorio nacional', icon: '📚', tooltip: 'Base normativa nacional de medicamentos (MINSA)' },
   { id: 'auditoria', label: 'Auditoría', icon: '🧾', tooltip: 'Histórico de ejecuciones del motor' },
   { id: 'decisiones', label: 'Decisiones médicas', icon: '👩‍⚕️', tooltip: 'Confirmaciones y ajustes clínicos' },
   { id: 'versionado', label: 'Versionado', icon: '🧬', tooltip: 'Gestión de versiones NTS' },

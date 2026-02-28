@@ -50,6 +50,16 @@ npm run preview
 
 ---
 
+
+## Petitorio nacional vs inventario local
+
+Se separó el módulo de medicamentos en dos capas:
+
+- **Base normativa nacional (`national_medications`)**: catálogo editable en `src/data/nationalMedications.json`, gestionado desde el módulo **Petitorio nacional** (crear/actualizar, importar CSV, exportar JSON, activar/desactivar sin eliminación física).
+- **Inventario del establecimiento**: disponibilidad local por sede (`src/store/establishmentsStore.jsx`) usada por el motor para validar tratamiento y recursos.
+
+> El inventario local solo agrega medicamentos activos del petitorio nacional.
+
 ## Pruebas
 
 ```bash
