@@ -6,6 +6,29 @@ import Card from './Card.jsx';
 import InventoryDashboard from './InventoryDashboard.jsx';
 
 const KNOWN_EQUIPMENT = ['venoclisis', 'balanza pediátrica', 'oxímetro', 'cama hospitalaria'];
+const REQUIRED_CSV_COLUMNS = ['genericname', 'concentration', 'pharmaceuticalform', 'route', 'presentation', 'stock'];
+
+const normalizeText = (value) => String(value ?? '').trim();
+
+const parseCsvRows = (csvText) => {
+  const lines = String(csvText || '').split(/\r?\n/).filter((line) => line.trim());
+  if (lines.length < 2) {
+    return { missingColumns: REQUIRED_CSV_COLUMNS, rows: [] };
+  }
+
+  const headers = lines[0].split(',').map((token) => token.trim().toLowerCase());
+  const missingColumns = REQUIRED_CSV_COLUMNS.filter((column) => !headers.includes(column));
+  if (missingColumns.length) {
+    return { missingColumns, rows: [] };
+  }
+
+  const rows = lines.slice(1).map((line) => {
+    const values = line.split(',').map((token) => token.trim());
+    return Object.fromEntries(headers.map((header, index) => [header, values[index] ?? '']));
+  });
+
+  return { missingColumns: [], rows };
+};
 
 /**
  * Editor del inventario del establecimiento activo usando establishment_inventory.
@@ -19,18 +42,18 @@ const InventoryManager = () => {
     associateNationalMedicationToEstablishment,
     updateInventoryStock,
     setInventoryAvailability,
-    importInventoryCsv,
     addEquipmentToActive,
     removeEquipmentFromActive,
   } = useEstablishmentsStore();
 
-  const { activeNationalMedications } = useNationalMedicationsStore();
+  const { nationalMedications, activeNationalMedications, upsertMedication } = useNationalMedicationsStore();
 
   const [selectedMedicationName, setSelectedMedicationName] = useState('');
   const [selectedStock, setSelectedStock] = useState('1');
   const [selectedExpirationDate, setSelectedExpirationDate] = useState('');
   const [newEquipment, setNewEquipment] = useState('');
   const [message, setMessage] = useState('');
+  const [uploadSummary, setUploadSummary] = useState(null);
 
   const medicationOptions = useMemo(
     () => Array.from(new Set(activeNationalMedications.map((item) => item.genericName))),
@@ -70,9 +93,99 @@ const InventoryManager = () => {
   const onCsvImport = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
     const text = await file.text();
-    const imported = importInventoryCsv(text, activeNationalMedications, activeEstablishment.id);
-    setMessage(imported ? `CSV cargado: ${imported} filas mapeadas al petitorio.` : 'CSV sin filas válidas para mapear.');
+    const parsed = parseCsvRows(text);
+
+    if (parsed.missingColumns.length) {
+      setUploadSummary({
+        totalProcessed: 0,
+        matchesFound: 0,
+        newCreated: 0,
+        errors: parsed.missingColumns.length,
+        warnings: [`Faltan columnas requeridas: ${parsed.missingColumns.join(', ')}`],
+      });
+      setMessage('CSV inválido: faltan columnas requeridas.');
+      event.target.value = '';
+      return;
+    }
+
+    const summary = {
+      totalProcessed: 0,
+      matchesFound: 0,
+      newCreated: 0,
+      errors: 0,
+      warnings: [],
+    };
+
+    const mutableNational = [...nationalMedications];
+
+    parsed.rows.forEach((row, index) => {
+      summary.totalProcessed += 1;
+
+      const genericName = normalizeText(row.genericname);
+      const concentration = normalizeText(row.concentration);
+      const pharmaceuticalForm = normalizeText(row.pharmaceuticalform);
+      const route = normalizeText(row.route);
+      const presentation = normalizeText(row.presentation);
+      const stock = Number(row.stock);
+
+      if (!genericName || !concentration || !pharmaceuticalForm || !route || !presentation || Number.isNaN(stock)) {
+        summary.errors += 1;
+        summary.warnings.push(`Fila ${index + 2}: datos incompletos o stock inválido.`);
+        return;
+      }
+
+      let matched = mutableNational.find((item) =>
+        normalizeText(item.genericName).toLowerCase() === genericName.toLowerCase()
+        && normalizeText(item.concentration).toLowerCase() === concentration.toLowerCase()
+        && normalizeText(item.pharmaceuticalForm).toLowerCase() === pharmaceuticalForm.toLowerCase()
+        && normalizeText(item.route).toLowerCase() === route.toLowerCase()
+        && normalizeText(item.presentation).toLowerCase() === presentation.toLowerCase(),
+      );
+
+      if (matched) {
+        summary.matchesFound += 1;
+      } else {
+        const generatedId = `PNM-AUTO-${Date.now()}-${index + 1}`;
+        const newNational = {
+          id: generatedId,
+          genericName,
+          concentration,
+          pharmaceuticalForm,
+          route,
+          presentation,
+          minsaCategory: 'Pendiente validación',
+          indications: [],
+          active: true,
+        };
+        const created = upsertMedication(newNational, 'csv-auto');
+        if (!created) {
+          summary.errors += 1;
+          summary.warnings.push(`Fila ${index + 2}: no se pudo crear medicamento nacional.`);
+          return;
+        }
+        matched = newNational;
+        mutableNational.push(newNational);
+        summary.newCreated += 1;
+        summary.warnings.push(`Fila ${index + 2}: medicamento no encontrado en national_medications, creado automáticamente.`);
+      }
+
+      const ok = associateNationalMedicationToEstablishment({
+        establishmentId: activeEstablishment.id,
+        nationalMedication: matched,
+        stock,
+        expirationDate: '',
+      });
+
+      if (!ok) {
+        summary.errors += 1;
+        summary.warnings.push(`Fila ${index + 2}: no se pudo insertar/actualizar inventario.`);
+      }
+    });
+
+    setUploadSummary(summary);
+    setMessage(`CSV procesado: ${summary.totalProcessed} filas.`);
     event.target.value = '';
   };
 
@@ -83,6 +196,26 @@ const InventoryManager = () => {
       </div>
 
       {message && <div style={{ fontSize: 12, color: '#0369a1', marginBottom: 8 }}>{message}</div>}
+
+      {uploadSummary && (
+        <div style={{ fontSize: 12, background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 8, padding: 10 }}>
+          <strong>Resumen post-carga CSV</strong>
+          <ul style={{ margin: '6px 0 0 18px' }}>
+            <li>Total procesados: {uploadSummary.totalProcessed}</li>
+            <li>Coincidencias encontradas: {uploadSummary.matchesFound}</li>
+            <li>Nuevos creados: {uploadSummary.newCreated}</li>
+            <li>Errores: {uploadSummary.errors}</li>
+          </ul>
+          {uploadSummary.warnings?.length > 0 && (
+            <details>
+              <summary>Advertencias ({uploadSummary.warnings.length})</summary>
+              <ul style={{ margin: '6px 0 0 18px' }}>
+                {uploadSummary.warnings.map((warning, index) => <li key={`${warning}-${index}`}>{warning}</li>)}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
 
       <section style={{ display: 'grid', gap: 10 }}>
         <label>

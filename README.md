@@ -59,6 +59,7 @@ Se separó el módulo de medicamentos en dos capas:
 - **Inventario del establecimiento**: disponibilidad local por sede (`src/store/establishmentsStore.jsx`) usada por el motor para validar tratamiento y recursos.
   - Modelo `EstablishmentInventory` en tabla lógica `establishment_inventory`.
   - Permite asociar medicamentos nacionales, editar stock, marcar disponibilidad y carga masiva CSV mapeada contra `national_medications`.
+- En carga CSV de inventario se validan columnas requeridas: `genericName`, `concentration`, `pharmaceuticalForm`, `route`, `presentation`, `stock`; se muestra resumen (procesados, coincidencias, nuevos creados, errores).
 
 > El inventario local solo agrega medicamentos activos del petitorio nacional.
 
