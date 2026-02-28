@@ -21,6 +21,8 @@ const RuleList = ({ rules, onEdit, onDelete }) => {
           const classification = rule.result?.classification || rule.diagnosis || 'Sin clasificación';
           const severity = rule.result?.severity || rule.severity || '-';
           const level = rule.levelRestriction || rule.levelRequired || rule.requiredCareLevel || '-';
+          const planName = rule.managementPlan?.name || rule.managementPlanId || '-';
+          const meds = Array.isArray(rule.specificMedications) ? rule.specificMedications : (rule.requiredMedications || []);
 
           return (
             <li
@@ -40,7 +42,10 @@ const RuleList = ({ rules, onEdit, onDelete }) => {
                 </div>
                 <div style={{ fontSize: 12, color: '#777' }}>
                   Condiciones: {rule.conditions?.conditions?.length || rule.conditions?.length || 0} | Nivel requerido:{' '}
-                  {Array.isArray(level) ? level.join(', ') : level} | Prioridad: {Number(rule.priority || 0)}
+                  {Array.isArray(level) ? level.join(', ') : level} | Prioridad: {Number(rule.priority || 0)} | Plan: {planName}
+                </div>
+                <div style={{ fontSize: 12, color: '#777' }}>
+                  Medicación específica: {Array.isArray(meds) && meds.length ? meds.join(', ') : '-'}
                 </div>
               </div>
 

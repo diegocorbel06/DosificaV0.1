@@ -17,6 +17,8 @@ const buildCondition = (variable) => ({
 });
 
 const buildGroup = () => ({ operator: 'AND', conditions: [] });
+const parseCsv = (text) => text.split(',').map((item) => item.trim()).filter(Boolean);
+const isGroup = (node) => Boolean(node?.conditions && node?.operator);
 
 const createEmptyRule = () => ({
   id: '',
@@ -27,14 +29,13 @@ const createEmptyRule = () => ({
   conditions: { operator: 'AND', conditions: [] },
   result: { classification: '', severity: '', tags: [] },
   managementPlanId: '',
+  managementPlan: { id: '', name: '', description: '' },
+  specificMedications: [],
   levelRestriction: [],
   treatment: { firstLine: '', alternative: '', doseFormula: '', indications: [] },
   requiredMedications: [],
   referralCriteria: '',
 });
-
-const parseCsv = (text) => text.split(',').map((item) => item.trim()).filter(Boolean);
-const isGroup = (node) => Boolean(node?.conditions && node?.operator);
 
 const normalizeRuleForEditor = (rule) => ({
   ...createEmptyRule(),
@@ -45,6 +46,16 @@ const normalizeRuleForEditor = (rule) => ({
     severity: rule.result?.severity || rule.severity || '',
     tags: Array.isArray(rule.result?.tags) ? rule.result.tags : [],
   },
+  managementPlan: {
+    id: rule.managementPlan?.id || rule.managementPlanId || '',
+    name: rule.managementPlan?.name || rule.managementPlanId || '',
+    description: rule.managementPlan?.description || rule.managementDescription || '',
+  },
+  specificMedications: Array.isArray(rule.specificMedications)
+    ? rule.specificMedications
+    : Array.isArray(rule.requiredMedications)
+      ? rule.requiredMedications
+      : [],
   conditions: isGroup(rule.conditions)
     ? rule.conditions
     : { operator: 'AND', conditions: Array.isArray(rule.conditions) ? rule.conditions : [] },
@@ -61,6 +72,7 @@ const normalizeRuleForSave = (rule) => {
   const pathology = rule.pathologyId;
   const classification = rule.result.classification;
   const severity = rule.result.severity;
+  const specificMedications = Array.isArray(rule.specificMedications) ? rule.specificMedications : [];
 
   return {
     ...rule,
@@ -70,6 +82,14 @@ const normalizeRuleForSave = (rule) => {
     severity,
     priority: Number(rule.priority || 0),
     levelRequired: rule.levelRestriction,
+    requiredMedications: Array.isArray(rule.requiredMedications) ? rule.requiredMedications : [],
+    specificMedications,
+    managementPlanId: rule.managementPlan?.id || rule.managementPlanId || '',
+    managementPlan: {
+      id: rule.managementPlan?.id || rule.managementPlanId || '',
+      name: rule.managementPlan?.name || rule.managementPlanId || '',
+      description: rule.managementPlan?.description || '',
+    },
     result: {
       classification,
       severity,
@@ -129,16 +149,10 @@ const RuleNodeBuilder = ({ node, onChange, onDelete, variables }) => {
         ))}
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            onClick={() => onChange({ ...node, conditions: [...node.conditions, buildCondition(variables[0])] })}
-          >
+          <button type="button" onClick={() => onChange({ ...node, conditions: [...node.conditions, buildCondition(variables[0])] })}>
             Agregar condición
           </button>
-          <button
-            type="button"
-            onClick={() => onChange({ ...node, conditions: [...node.conditions, buildGroup()] })}
-          >
+          <button type="button" onClick={() => onChange({ ...node, conditions: [...node.conditions, buildGroup()] })}>
             Agregar grupo
           </button>
         </div>
@@ -162,14 +176,7 @@ const RuleNodeBuilder = ({ node, onChange, onDelete, variables }) => {
               return;
             }
 
-            onChange({
-              ...node,
-              field: exact.id,
-              label: exact.name,
-              type: exact.type,
-              unit: exact.unit || '',
-              value: exact.type === 'boolean' ? false : '',
-            });
+            onChange({ ...node, field: exact.id, label: exact.name, type: exact.type, unit: exact.unit || '', value: exact.type === 'boolean' ? false : '' });
           }}
           placeholder="Variable clínica"
         />
@@ -193,9 +200,7 @@ const RuleNodeBuilder = ({ node, onChange, onDelete, variables }) => {
         ) : selectedVariable?.type === 'select' ? (
           <select value={String(node.value)} onChange={(e) => onChange({ ...node, value: e.target.value })}>
             <option value="">Seleccionar</option>
-            {(selectedVariable.options || []).map((option) => (
-              <option key={option} value={option}>{option}</option>
-            ))}
+            {(selectedVariable.options || []).map((option) => <option key={option} value={option}>{option}</option>)}
           </select>
         ) : (
           <input value={node.value} onChange={(e) => onChange({ ...node, value: e.target.value })} placeholder="Valor" />
@@ -281,8 +286,12 @@ const RuleEditor = ({ filterText = '' }) => {
           <label>Severidad<input value={formRule.result.severity} onChange={(e) => setFormRule((prev) => ({ ...prev, result: { ...prev.result, severity: e.target.value } }))} /></label>
           <label>Tags (coma separadas)<input value={(formRule.result.tags || []).join(', ')} onChange={(e) => setFormRule((prev) => ({ ...prev, result: { ...prev.result, tags: parseCsv(e.target.value) } }))} /></label>
 
-          <h4 style={{ marginBottom: 0 }}>Plan terapéutico asociado</h4>
-          <label>managementPlanId<input value={formRule.managementPlanId} onChange={(e) => setFormRule((prev) => ({ ...prev, managementPlanId: e.target.value }))} /></label>
+          <h4 style={{ marginBottom: 0 }}>Plan de manejo y medicación</h4>
+          <label>ID plan manejo<input value={formRule.managementPlan.id} onChange={(e) => setFormRule((prev) => ({ ...prev, managementPlanId: e.target.value, managementPlan: { ...prev.managementPlan, id: e.target.value } }))} /></label>
+          <label>Nombre plan manejo<input value={formRule.managementPlan.name} onChange={(e) => setFormRule((prev) => ({ ...prev, managementPlan: { ...prev.managementPlan, name: e.target.value } }))} /></label>
+          <label>Descripción plan manejo<textarea rows={2} value={formRule.managementPlan.description} onChange={(e) => setFormRule((prev) => ({ ...prev, managementPlan: { ...prev.managementPlan, description: e.target.value } }))} /></label>
+          <label>Medicamentos específicos (coma separados)<input value={(formRule.specificMedications || []).join(', ')} onChange={(e) => setFormRule((prev) => ({ ...prev, specificMedications: parseCsv(e.target.value) }))} /></label>
+
           <label>Medicamento de elección<AutoCompleteInput listId="med-first-line" suggestions={MEDICATION_SUGGESTIONS} value={formRule.treatment.firstLine} onChange={(value) => setFormRule((prev) => ({ ...prev, treatment: { ...prev.treatment, firstLine: value } }))} /></label>
           <label>Alternativa<AutoCompleteInput listId="med-alternative" suggestions={MEDICATION_SUGGESTIONS} value={formRule.treatment.alternative} onChange={(value) => setFormRule((prev) => ({ ...prev, treatment: { ...prev.treatment, alternative: value } }))} /></label>
           <label>Fórmula de dosis<input value={formRule.treatment.doseFormula} onChange={(e) => setFormRule((prev) => ({ ...prev, treatment: { ...prev.treatment, doseFormula: e.target.value } }))} /></label>
