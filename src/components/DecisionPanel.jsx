@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { useAuditStore } from '../store/auditStore.js';
-import { useDecisionLogStore } from '../store/decisionLogStore.js';
-import { useAppModeStore } from '../store/appModeStore.js';
+import { useAuditStore } from '../store/auditStore.jsx';
+import { useDecisionLogStore } from '../store/decisionLogStore.jsx';
+import { useAppModeStore } from '../store/appModeStore.jsx';
 
 /**
  * Panel para confirmar/modificar decisiones sugeridas por el sistema.

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useAppModeStore } from '../store/appModeStore.js';
+import { useAppModeStore } from '../store/appModeStore.jsx';
 
 /**
  * Selector explícito de modo de operación.

@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react';
-import { useClinicalStore } from '../store/clinicalStore.js';
-import { useEstablishmentsStore } from '../store/establishmentsStore.js';
-import { useAppModeStore } from '../store/appModeStore.js';
-import { useAuditStore } from '../store/auditStore.js';
-import { useDecisionLogStore } from '../store/decisionLogStore.js';
+import { useClinicalStore } from '../store/clinicalStore.jsx';
+import { useEstablishmentsStore } from '../store/establishmentsStore.jsx';
+import { useAppModeStore } from '../store/appModeStore.jsx';
+import { useAuditStore } from '../store/auditStore.jsx';
+import { useDecisionLogStore } from '../store/decisionLogStore.jsx';
 import StatusCard from './StatusCard.jsx';
 import DataTable from './DataTable.jsx';
 

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useClinicalStore } from '../store/clinicalStore.js';
+import { useClinicalStore } from '../store/clinicalStore.jsx';
 
 /**
  * Panel de control de versiones NTS de reglas clínicas.

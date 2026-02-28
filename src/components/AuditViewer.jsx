@@ -1,6 +1,6 @@
 import React from 'react';
-import { useAuditStore } from '../store/auditStore.js';
-import { useAppModeStore } from '../store/appModeStore.js';
+import { useAuditStore } from '../store/auditStore.jsx';
+import { useAppModeStore } from '../store/appModeStore.jsx';
 
 /**
  * Visualizador de auditoría clínica con exportación JSON.

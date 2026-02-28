@@ -8,11 +8,11 @@ import VersionControlPanel from './VersionControlPanel.jsx';
 import DecisionPanel from './DecisionPanel.jsx';
 import AppModeSelector from './AppModeSelector.jsx';
 import SystemDashboard from './SystemDashboard.jsx';
-import { ClinicalStoreProvider } from '../store/clinicalStore.js';
-import { EstablishmentsStoreProvider } from '../store/establishmentsStore.js';
-import { AuditStoreProvider } from '../store/auditStore.js';
-import { DecisionLogStoreProvider } from '../store/decisionLogStore.js';
-import { AppModeStoreProvider } from '../store/appModeStore.js';
+import { ClinicalStoreProvider } from '../store/clinicalStore.jsx';
+import { EstablishmentsStoreProvider } from '../store/establishmentsStore.jsx';
+import { AuditStoreProvider } from '../store/auditStore.jsx';
+import { DecisionLogStoreProvider } from '../store/decisionLogStore.jsx';
+import { AppModeStoreProvider } from '../store/appModeStore.jsx';
 
 /**
  * Pantalla integrada: modo + establecimientos + versionado + inventario + editor + evaluador + auditoría + decisiones.

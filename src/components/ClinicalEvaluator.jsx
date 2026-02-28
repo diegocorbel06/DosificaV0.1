@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import useClinicalEngine from '../hooks/useClinicalEngine.js';
-import { useClinicalStore } from '../store/clinicalStore.js';
-import { useEstablishmentsStore } from '../store/establishmentsStore.js';
-import { useAuditStore } from '../store/auditStore.js';
+import { useClinicalStore } from '../store/clinicalStore.jsx';
+import { useEstablishmentsStore } from '../store/establishmentsStore.jsx';
+import { useAuditStore } from '../store/auditStore.jsx';
 import { buildAuditEntries } from '../audit/auditLogger.js';
 import ResponsibilityGate from './ResponsibilityGate.jsx';
-import { useAppModeStore } from '../store/appModeStore.js';
+import { useAppModeStore } from '../store/appModeStore.jsx';
 
 const createInitialPatient = () => ({
   edad: '',

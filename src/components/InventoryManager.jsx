@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useEstablishmentsStore } from '../store/establishmentsStore.js';
+import { useEstablishmentsStore } from '../store/establishmentsStore.jsx';
 
 /**
  * Editor del inventario del establecimiento activo.

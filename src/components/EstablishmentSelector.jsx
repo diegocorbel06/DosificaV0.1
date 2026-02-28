@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useEstablishmentsStore } from '../store/establishmentsStore.js';
+import { useEstablishmentsStore } from '../store/establishmentsStore.jsx';
 
 /**
  * Selector de establecimiento activo y alta rápida de sedes.

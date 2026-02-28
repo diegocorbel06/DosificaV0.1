@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import ConditionBuilder from './ConditionBuilder.jsx';
 import RuleList from './RuleList.jsx';
-import { useClinicalStore } from '../store/clinicalStore.js';
+import { useClinicalStore } from '../store/clinicalStore.jsx';
 
 const PATHOLOGY_OPTIONS = [
   { value: 'deshidratacion', label: 'Deshidratación' },
