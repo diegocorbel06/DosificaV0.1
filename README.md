@@ -57,6 +57,8 @@ Se separó el módulo de medicamentos en dos capas:
 
 - **Base normativa nacional (`national_medications`)**: catálogo editable en `src/data/nationalMedications.json`, gestionado desde el módulo **Petitorio nacional** (crear/actualizar, importar CSV, exportar JSON, activar/desactivar sin eliminación física).
 - **Inventario del establecimiento**: disponibilidad local por sede (`src/store/establishmentsStore.jsx`) usada por el motor para validar tratamiento y recursos.
+  - Modelo `EstablishmentInventory` en tabla lógica `establishment_inventory`.
+  - Permite asociar medicamentos nacionales, editar stock, marcar disponibilidad y carga masiva CSV mapeada contra `national_medications`.
 
 > El inventario local solo agrega medicamentos activos del petitorio nacional.
 
@@ -99,3 +101,6 @@ Estas reglas se normalizan al iniciar `clinicalStore` y quedan listas para evalu
 node --experimental-default-type=module src/engine/example.js
 ```
 
+
+
+Vista de inventario: `src/components/InventoryDashboard.jsx` (buscador, filtros por vía/forma y disponibilidad).
