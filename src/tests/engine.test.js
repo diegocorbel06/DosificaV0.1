@@ -126,6 +126,86 @@ describe('Clinical engine basics', () => {
     expect(resolved[0].medicationAvailable).toEqual(['Sulfato ferroso']);
   });
 
+  it('soporta síntomas, signos, laboratorio y select parasitológico con combinaciones AND/OR complejas', () => {
+    const rules = [
+      {
+        id: 'anemia-severa-giardia',
+        priority: 100,
+        conditions: {
+          operator: 'AND',
+          conditions: [
+            {
+              operator: 'OR',
+              conditions: [
+                { field: 'sintomas', label: 'Síntomas', type: 'select', operator: 'includes', value: 'fatiga' },
+                {
+                  field: 'signos',
+                  label: 'Signos físicos',
+                  type: 'select',
+                  operator: 'includes',
+                  value: 'palidez intensa',
+                },
+              ],
+            },
+            { field: 'laboratorio.hemoglobina', label: 'Hemoglobina', type: 'number', operator: '<', value: 7 },
+            {
+              field: 'laboratorio.coproparasitoscopico',
+              label: 'Coproparasitoscópico',
+              type: 'select',
+              operator: '=',
+              value: 'quistes giardia',
+            },
+          ],
+        },
+        result: { classification: 'Anemia severa asociada a parasitosis', severity: 'severa' },
+      },
+      {
+        id: 'anemia-moderada',
+        priority: 50,
+        conditions: {
+          operator: 'AND',
+          conditions: [
+            { field: 'laboratorio.hemoglobina', label: 'Hemoglobina', type: 'number', operator: '<', value: 10 },
+            { field: 'laboratorio.hemoglobina', label: 'Hemoglobina', type: 'number', operator: '>=', value: 7 },
+          ],
+        },
+        result: { classification: 'Anemia moderada', severity: 'moderada' },
+      },
+      {
+        id: 'anemia-leve',
+        priority: 10,
+        conditions: {
+          operator: 'AND',
+          conditions: [
+            { field: 'laboratorio.hemoglobina', label: 'Hemoglobina', type: 'number', operator: '<', value: 12 },
+            { field: 'laboratorio.hemoglobina', label: 'Hemoglobina', type: 'number', operator: '>=', value: 10 },
+          ],
+        },
+        result: { classification: 'Anemia leve', severity: 'leve' },
+      },
+    ];
+
+    const patient = {
+      sintomas: ['fatiga', 'mareo'],
+      signos: ['palidez cutánea'],
+      laboratorio: {
+        hemoglobina: 6.8,
+        coproparasitoscopico: 'quistes giardia',
+      },
+      nivelResolutivo: 'I-3',
+      altitud: 200,
+      medicamentosDisponibles: ['Sulfato ferroso'],
+    };
+
+    const matchedRules = evaluateRules(rules, patient);
+    expect(matchedRules.map((rule) => rule.id)).toEqual(['anemia-severa-giardia']);
+
+    const engineResult = runRuleEngine({ rules, patientData: patient, altitudeConfig: { maxMsnm: 500 } });
+    expect(engineResult).toHaveLength(1);
+    expect(engineResult[0].classification).toBe('Anemia severa asociada a parasitosis');
+    expect(engineResult[0].severity).toBe('severa');
+  });
+
   it('calcula dosis por peso con límite máximo', () => {
     const dosage = calculateDosage(
       { mgPorKg: 10, frecuencia: 'cada 8 horas', dosisMaxima: 1000 },

@@ -12,6 +12,12 @@ const defaultVariables = [
   { id: 'signos', name: 'Signos', type: 'select', options: ['mucosas secas', 'ojos hundidos', 'palidez'] },
   { id: 'laboratorio.hemoglobina', name: 'Hemoglobina', type: 'number', unit: 'g/dL' },
   { id: 'laboratorio.sodio', name: 'Sodio', type: 'number', unit: 'mmol/L' },
+  {
+    id: 'laboratorio.coproparasitoscopico',
+    name: 'Hallazgo coproparasitoscópico',
+    type: 'select',
+    options: ['negativo', 'quistes giardia', 'huevos helmintos'],
+  },
 ];
 
 const safeLoadVariables = () => {
