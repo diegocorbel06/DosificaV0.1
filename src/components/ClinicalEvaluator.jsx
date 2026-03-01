@@ -10,6 +10,7 @@ import ResponsibilityGate from './ResponsibilityGate.jsx';
 import { useAppModeStore } from '../store/appModeStore.jsx';
 import Card from './Card.jsx';
 import SeverityBadge from './SeverityBadge.jsx';
+import { useDebounce } from '../hooks/useDebounce.js';
 
 const SIGN_OPTIONS = [
   'mucosas secas',
@@ -87,6 +88,8 @@ const ClinicalEvaluator = ({ onEditRelatedRules = () => {} }) => {
     [patientForm, activeEstablishment, activeNationalMedications, inventoryForActiveEstablishment],
   );
 
+  const debouncedPatientPreview = useDebounce(patientPreview, 350);
+
   const filteredSignOptions = useMemo(() => {
     const query = signSearch.trim().toLowerCase();
     if (!query) return SIGN_OPTIONS;
@@ -130,7 +133,7 @@ const ClinicalEvaluator = ({ onEditRelatedRules = () => {} }) => {
     }));
   };
 
-  const evaluateNow = () => {
+  const evaluateNow = (previewData = patientPreview) => {
     if (!evaluableRules.length) {
       setMessage(`No hay reglas activas para la versión ${activeNtsVersion}.`);
       setResults([]);
@@ -146,15 +149,15 @@ const ClinicalEvaluator = ({ onEditRelatedRules = () => {} }) => {
     }
 
     setMessage('');
-    const evaluation = evaluatePatient(patientPreview, { unmetPolicy });
+    const evaluation = evaluatePatient(previewData, { unmetPolicy });
     setResults(evaluation);
     setResponsibilityAccepted(isSimulation);
 
     const patientSnapshot = {
-      edad: patientPreview.edad,
-      peso: patientPreview.peso,
-      signos: patientPreview.signos,
-      laboratorio: patientPreview.laboratorio,
+      edad: previewData.edad,
+      peso: previewData.peso,
+      signos: previewData.signos,
+      laboratorio: previewData.laboratorio,
     };
 
     if (isProduction) {
@@ -173,7 +176,7 @@ const ClinicalEvaluator = ({ onEditRelatedRules = () => {} }) => {
   };
 
   useEffect(() => {
-    evaluateNow();
+    evaluateNow(debouncedPatientPreview);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     rules,
@@ -183,7 +186,7 @@ const ClinicalEvaluator = ({ onEditRelatedRules = () => {} }) => {
     activeEstablishment?.level,
     activeEstablishment?.medicationsAvailable,
     activeEstablishment?.equipmentAvailable,
-    patientPreview,
+    debouncedPatientPreview,
     unmetPolicy,
     isSimulation,
     isProduction,
