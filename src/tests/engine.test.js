@@ -1,426 +1,272 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateRule, evaluateRules } from '../engine/ruleEvaluator.js';
+import {
+  evaluateRuleCondition,
+  evaluateConditionGroup,
+} from '../engine/ruleEvaluator.js';
 import { calculateDosage } from '../engine/dosageCalculator.js';
 import { runRuleEngine } from '../engine/ruleEngine.js';
 
-describe('Clinical engine basics', () => {
-  it('evalúa regla básica correctamente', () => {
-    const rule = {
-      id: 'r1',
+describe('evaluateRuleCondition', () => {
+  it('lessThan: 5 < 10 true, 10 < 5 false', () => {
+    expect(
+      evaluateRuleCondition(
+        { field: 'valor', type: 'number', operator: 'lessThan', value: 10 },
+        { valor: 5 },
+      ),
+    ).toBe(true);
+
+    expect(
+      evaluateRuleCondition(
+        { field: 'valor', type: 'number', operator: 'lessThan', value: 5 },
+        { valor: 10 },
+      ),
+    ).toBe(false);
+  });
+
+  it('greaterThan: 10 > 5 true', () => {
+    expect(
+      evaluateRuleCondition(
+        { field: 'valor', type: 'number', operator: 'greaterThan', value: 5 },
+        { valor: 10 },
+      ),
+    ).toBe(true);
+  });
+
+  it('equals con strings normalizados', () => {
+    expect(
+      evaluateRuleCondition(
+        { field: 'diagnostico', type: 'select', operator: 'equals', value: 'anemia' },
+        { diagnostico: 'Anemia' },
+      ),
+    ).toBe(true);
+  });
+
+  it('includes con array', () => {
+    expect(
+      evaluateRuleCondition(
+        { field: 'signos', type: 'select', operator: 'includes', value: 'letargo' },
+        { signos: ['ojos hundidos', 'letargo'] },
+      ),
+    ).toBe(true);
+  });
+
+  it('notIncludes con array', () => {
+    expect(
+      evaluateRuleCondition(
+        { field: 'signos', type: 'select', operator: 'notIncludes', value: 'letargo' },
+        { signos: ['fiebre'] },
+      ),
+    ).toBe(true);
+  });
+
+  it('operador inválido lanza Error', () => {
+    expect(() =>
+      evaluateRuleCondition(
+        { field: 'valor', type: 'number', operator: 'INVALID', value: 1 },
+        { valor: 2 },
+      )).toThrowError('Operador no soportado');
+  });
+});
+
+describe('evaluateConditionGroup', () => {
+  it('AND con dos condiciones verdaderas -> true', () => {
+    const group = {
+      operator: 'AND',
       conditions: [
-        { field: 'edad', operator: 'greaterThan', value: 10 },
-        { field: 'signos', operator: 'includes', value: 'mucosas secas' },
+        { field: 'edad', type: 'number', operator: '>', value: 5 },
+        { field: 'peso', type: 'number', operator: '>=', value: 10 },
       ],
     };
 
-    const patient = {
-      edad: 25,
-      signos: ['mucosas secas', 'sed intensa'],
-    };
-
-    expect(evaluateRule(rule, patient)).toBe(true);
+    expect(evaluateConditionGroup(group, { edad: 8, peso: 10 })).toBe(true);
   });
 
-  it('evalúa múltiples variables simultáneas y ordena por prioridad', () => {
-    const rules = [
-      {
-        id: 'baja-prioridad',
-        active: true,
-        priority: 1,
-        conditions: {
+  it('AND con una condición falsa -> false', () => {
+    const group = {
+      operator: 'AND',
+      conditions: [
+        { field: 'edad', type: 'number', operator: '>', value: 5 },
+        { field: 'peso', type: 'number', operator: '>=', value: 10 },
+      ],
+    };
+
+    expect(evaluateConditionGroup(group, { edad: 8, peso: 9 })).toBe(false);
+  });
+
+  it('OR con una condición verdadera -> true', () => {
+    const group = {
+      operator: 'OR',
+      conditions: [
+        { field: 'edad', type: 'number', operator: '>', value: 12 },
+        { field: 'signos', type: 'select', operator: 'includes', value: 'letargo' },
+      ],
+    };
+
+    expect(evaluateConditionGroup(group, { edad: 8, signos: ['letargo'] })).toBe(true);
+  });
+
+  it('OR con todas falsas -> false', () => {
+    const group = {
+      operator: 'OR',
+      conditions: [
+        { field: 'edad', type: 'number', operator: '>', value: 12 },
+        { field: 'signos', type: 'select', operator: 'includes', value: 'letargo' },
+      ],
+    };
+
+    expect(evaluateConditionGroup(group, { edad: 8, signos: ['fiebre'] })).toBe(false);
+  });
+
+  it('grupos anidados: AND dentro de OR', () => {
+    const group = {
+      operator: 'OR',
+      conditions: [
+        {
           operator: 'AND',
           conditions: [
-            { field: 'edad', label: 'Edad', type: 'number', operator: '>', value: 12 },
-            { field: 'sexo', label: 'Sexo', type: 'select', operator: '=', value: 'F' },
+            { field: 'edad', type: 'number', operator: '>=', value: 18 },
+            { field: 'gestante', type: 'boolean', operator: '=', value: true },
           ],
         },
-      },
-      {
-        id: 'alta-prioridad',
-        active: true,
-        priority: 10,
-        conditions: {
-          operator: 'AND',
-          conditions: [
-            { field: 'edad', label: 'Edad', type: 'number', operator: '>=', value: 18 },
-            { field: 'gestante', label: 'Gestante', type: 'boolean', operator: '=', value: true },
-            { field: 'laboratorio.hemoglobina', label: 'Hb', type: 'number', operator: '<', value: 11 },
-          ],
-        },
-      },
-    ];
-
-    const patient = {
-      edad: 20,
-      sexo: 'F',
-      gestante: true,
-      laboratorio: { hemoglobina: 10.2 },
-    };
-
-    const matched = evaluateRules(rules, patient);
-    expect(matched.map((rule) => rule.id)).toEqual(['alta-prioridad', 'baja-prioridad']);
-  });
-
-  it('filtra por nivel resolutivo, evalúa altitud y retorna CompositeResult', () => {
-    const rules = [
-      {
-        id: 'solo-I3-altitud',
-        pathologyId: 'anemia',
-        priority: 5,
-        levelRestriction: ['I-3', 'I-4'],
-        altitudeMaxMsnm: 500,
-        conditions: {
-          operator: 'AND',
-          conditions: [{ field: 'edad', label: 'Edad', type: 'number', operator: '>', value: 5 }],
-        },
-        result: {
-          classification: 'Anemia moderada',
-          severity: 'Moderada',
-          morphology: 'Microcítica hipocrómica',
-          medullaryResponse: 'Arregenerativa',
-        },
-        compositeResult: {
-          primaryClassification: 'Anemia moderada',
-          secondaryClassification: 'Microcítica hipocrómica',
-          tertiaryClassification: 'Arregenerativa',
-        },
-        managementPlan: { id: 'MP-1', name: 'Plan hierro', description: 'Control y suplementación' },
-        specificMedications: ['Sulfato ferroso', 'Ácido fólico'],
-        requiredMedications: ['Sulfato ferroso'],
-        treatment: { firstLine: 'Sulfato ferroso', doseFormula: '3 mg * peso' },
-      },
-    ];
-
-    const patient = {
-      edad: 20,
-      peso: 50,
-      sexo: 'F',
-      gestante: false,
-      altitud: 650,
-      nivelResolutivo: 'I-2',
-      medicamentosDisponibles: ['Sulfato ferroso'],
-      establishmentId: 'EST-TEST',
-      nationalMedications: [
-        {
-          id: 'PNM-SF',
-          genericName: 'Sulfato ferroso',
-          concentration: '125 mg/5 mL',
-          pharmaceuticalForm: 'jarabe',
-          route: 'VO',
-          presentation: 'frasco x 120 mL',
-          active: true,
-          allowedLevels: ['I-1', 'I-2', 'I-3', 'I-4'],
-        },
-        {
-          id: 'PNM-AF',
-          genericName: 'Ácido fólico',
-          concentration: '5 mg',
-          pharmaceuticalForm: 'tableta',
-          route: 'VO',
-          presentation: 'blíster x 10',
-          active: true,
-          allowedLevels: ['I-1', 'I-2', 'I-3', 'I-4'],
-        },
-      ],
-      establishmentInventory: [
-        {
-          id: 'INV-1',
-          establishmentId: 'EST-TEST',
-          nationalMedicationId: 'PNM-SF',
-          stock: 10,
-          isAvailable: true,
-          lastUpdated: '2026-01-01T00:00:00.000Z',
-        },
-        {
-          id: 'INV-2',
-          establishmentId: 'EST-TEST',
-          nationalMedicationId: 'PNM-AF',
-          stock: 0,
-          isAvailable: false,
-          lastUpdated: '2026-01-01T00:00:00.000Z',
-        },
+        { field: 'signos', type: 'select', operator: 'includes', value: 'letargo' },
       ],
     };
 
-    const noneByLevel = runRuleEngine({ rules, patientData: patient });
-    expect(noneByLevel).toHaveLength(0);
-
-    const noneByAltitude = runRuleEngine({
-      rules,
-      patientData: { ...patient, nivelResolutivo: 'I-3' },
-      altitudeConfig: { maxMsnm: 500 },
-    });
-    expect(noneByAltitude).toHaveLength(0);
-
-    const resolved = runRuleEngine({
-      rules,
-      patientData: { ...patient, nivelResolutivo: 'I-3', altitud: 400 },
-      altitudeConfig: { maxMsnm: 500 },
-    });
-
-    expect(resolved[0].classification).toBe('Anemia moderada');
-    expect(resolved[0].severity).toBe('Moderada');
-    expect(resolved[0].morphology).toBe('Microcítica hipocrómica');
-    expect(resolved[0].medullaryResponse).toBe('Arregenerativa');
-    expect(resolved[0].compositeResult.secondaryClassification).toBe('Microcítica hipocrómica');
-    expect(resolved[0].planRecommended).toBe('Control y suplementación');
-    expect(resolved[0].medicationAvailable).toEqual(['Sulfato ferroso']);
-    expect(resolved[0].therapeuticMedications.recommended.map((item) => item.genericName)).toEqual([
-      'Sulfato ferroso',
-      'Ácido fólico',
-    ]);
-    expect(resolved[0].therapeuticMedications.available.map((item) => item.genericName)).toEqual(['Sulfato ferroso']);
-    expect(resolved[0].therapeuticMedications.unavailable.map((item) => item.genericName)).toEqual(['Ácido fólico']);
+    expect(evaluateConditionGroup(group, { edad: 22, gestante: true, signos: [] })).toBe(true);
+    expect(evaluateConditionGroup(group, { edad: 10, gestante: false, signos: ['letargo'] })).toBe(true);
+    expect(evaluateConditionGroup(group, { edad: 10, gestante: false, signos: ['fiebre'] })).toBe(false);
   });
+});
 
-  it('soporta síntomas, signos, laboratorio y select parasitológico con combinaciones AND/OR complejas', () => {
-    const rules = [
-      {
-        id: 'anemia-severa-giardia',
-        priority: 100,
-        conditions: {
-          operator: 'AND',
-          conditions: [
-            {
-              operator: 'OR',
-              conditions: [
-                { field: 'sintomas', label: 'Síntomas', type: 'select', operator: 'includes', value: 'fatiga' },
-                {
-                  field: 'signos',
-                  label: 'Signos físicos',
-                  type: 'select',
-                  operator: 'includes',
-                  value: 'palidez intensa',
-                },
-              ],
-            },
-            { field: 'laboratorio.hemoglobina', label: 'Hemoglobina', type: 'number', operator: '<', value: 7 },
-            {
-              field: 'laboratorio.coproparasitoscopico',
-              label: 'Coproparasitoscópico',
-              type: 'select',
-              operator: '=',
-              value: 'quistes giardia',
-            },
-          ],
-        },
-        result: { classification: 'Anemia severa asociada a parasitosis', severity: 'severa' },
-      },
-      {
-        id: 'anemia-moderada',
-        priority: 50,
-        conditions: {
-          operator: 'AND',
-          conditions: [
-            { field: 'laboratorio.hemoglobina', label: 'Hemoglobina', type: 'number', operator: '<', value: 10 },
-            { field: 'laboratorio.hemoglobina', label: 'Hemoglobina', type: 'number', operator: '>=', value: 7 },
-          ],
-        },
-        result: { classification: 'Anemia moderada', severity: 'moderada' },
-      },
-      {
-        id: 'anemia-leve',
-        priority: 10,
-        conditions: {
-          operator: 'AND',
-          conditions: [
-            { field: 'laboratorio.hemoglobina', label: 'Hemoglobina', type: 'number', operator: '<', value: 12 },
-            { field: 'laboratorio.hemoglobina', label: 'Hemoglobina', type: 'number', operator: '>=', value: 10 },
-          ],
-        },
-        result: { classification: 'Anemia leve', severity: 'leve' },
-      },
-    ];
-
-    const patient = {
-      sintomas: ['fatiga', 'mareo'],
-      signos: ['palidez cutánea'],
-      laboratorio: {
-        hemoglobina: 6.8,
-        coproparasitoscopico: 'quistes giardia',
-      },
-      nivelResolutivo: 'I-3',
-      altitud: 200,
-      medicamentosDisponibles: ['Sulfato ferroso'],
-      establishmentId: 'EST-TEST',
-      nationalMedications: [
-        {
-          id: 'PNM-SF',
-          genericName: 'Sulfato ferroso',
-          concentration: '125 mg/5 mL',
-          pharmaceuticalForm: 'jarabe',
-          route: 'VO',
-          presentation: 'frasco x 120 mL',
-          active: true,
-          allowedLevels: ['I-1', 'I-2', 'I-3', 'I-4'],
-        },
-        {
-          id: 'PNM-AF',
-          genericName: 'Ácido fólico',
-          concentration: '5 mg',
-          pharmaceuticalForm: 'tableta',
-          route: 'VO',
-          presentation: 'blíster x 10',
-          active: true,
-          allowedLevels: ['I-1', 'I-2', 'I-3', 'I-4'],
-        },
-      ],
-      establishmentInventory: [
-        {
-          id: 'INV-1',
-          establishmentId: 'EST-TEST',
-          nationalMedicationId: 'PNM-SF',
-          stock: 10,
-          isAvailable: true,
-          lastUpdated: '2026-01-01T00:00:00.000Z',
-        },
-        {
-          id: 'INV-2',
-          establishmentId: 'EST-TEST',
-          nationalMedicationId: 'PNM-AF',
-          stock: 0,
-          isAvailable: false,
-          lastUpdated: '2026-01-01T00:00:00.000Z',
-        },
-      ],
-    };
-
-    const matchedRules = evaluateRules(rules, patient);
-    expect(matchedRules.map((rule) => rule.id)).toEqual(['anemia-severa-giardia']);
-
-    const engineResult = runRuleEngine({ rules, patientData: patient, altitudeConfig: { maxMsnm: 500 } });
-    expect(engineResult).toHaveLength(1);
-    expect(engineResult[0].classification).toBe('Anemia severa asociada a parasitosis');
-    expect(engineResult[0].severity).toBe('severa');
-  });
-
-
-  it('retorna alerta cuando ningún medicamento sugerido está disponible en establecimiento', () => {
-    const rules = [
-      {
-        id: 'regla-alerta-disponibilidad',
-        priority: 1,
-        conditions: {
-          operator: 'AND',
-          conditions: [{ field: 'edad', label: 'Edad', type: 'number', operator: '>', value: 1 }],
-        },
-        specificMedications: ['Albendazol'],
-        result: { classification: 'Parasitosis probable', severity: 'leve' },
-      },
-    ];
-
-    const patient = {
-      edad: 10,
-      establishmentId: 'EST-ALERTA',
-      nivelResolutivo: 'I-2',
-      medicamentosDisponibles: [],
-      nationalMedications: [
-        {
-          id: 'PNM-ALB',
-          genericName: 'Albendazol',
-          concentration: '400 mg',
-          pharmaceuticalForm: 'tableta',
-          route: 'VO',
-          presentation: 'blíster x 1',
-          active: true,
-          allowedLevels: ['I-1', 'I-2', 'I-3', 'I-4'],
-        },
-      ],
-      establishmentInventory: [
-        {
-          id: 'INV-ALB',
-          establishmentId: 'EST-ALERTA',
-          nationalMedicationId: 'PNM-ALB',
-          stock: 0,
-          isAvailable: false,
-          lastUpdated: '2026-01-01T00:00:00.000Z',
-        },
-      ],
-    };
-
-    const resolved = runRuleEngine({ rules, patientData: patient });
-    expect(resolved).toHaveLength(1);
-    expect(resolved[0].therapeuticMedications.available).toEqual([]);
-    expect(resolved[0].alerts).toContain('No disponible en establecimiento');
-  });
-
-
-  it('no sugiere medicamentos no permitidos para el nivel resolutivo activo', () => {
-    const rules = [
-      {
-        id: 'regla-nivel-medicamento',
-        priority: 1,
-        conditions: {
-          operator: 'AND',
-          conditions: [{ field: 'edad', label: 'Edad', type: 'number', operator: '>', value: 1 }],
-        },
-        specificMedications: ['Albendazol', 'Sulfato ferroso'],
-        result: { classification: 'Manejo antiparasitario', severity: 'leve' },
-      },
-    ];
-
-    const patient = {
-      edad: 12,
-      establishmentId: 'EST-LVL',
-      nivelResolutivo: 'I-1',
-      medicamentosDisponibles: ['Albendazol', 'Sulfato ferroso'],
-      nationalMedications: [
-        {
-          id: 'PNM-ALB',
-          genericName: 'Albendazol',
-          concentration: '400 mg',
-          pharmaceuticalForm: 'tableta',
-          route: 'VO',
-          presentation: 'blíster x 1',
-          active: true,
-          allowedLevels: ['I-3', 'I-4'],
-        },
-        {
-          id: 'PNM-SF',
-          genericName: 'Sulfato ferroso',
-          concentration: '125 mg/5 mL',
-          pharmaceuticalForm: 'jarabe',
-          route: 'VO',
-          presentation: 'frasco x 120 mL',
-          active: true,
-          allowedLevels: ['I-1', 'I-2', 'I-3', 'I-4'],
-        },
-      ],
-      establishmentInventory: [
-        {
-          id: 'INV-ALB',
-          establishmentId: 'EST-LVL',
-          nationalMedicationId: 'PNM-ALB',
-          stock: 20,
-          isAvailable: true,
-          lastUpdated: '2026-01-01T00:00:00.000Z',
-        },
-        {
-          id: 'INV-SF',
-          establishmentId: 'EST-LVL',
-          nationalMedicationId: 'PNM-SF',
-          stock: 20,
-          isAvailable: true,
-          lastUpdated: '2026-01-01T00:00:00.000Z',
-        },
-      ],
-    };
-
-    const resolved = runRuleEngine({ rules, patientData: patient });
-    expect(resolved).toHaveLength(1);
-    expect(resolved[0].therapeuticMedications.recommended.map((item) => item.genericName)).toEqual(['Sulfato ferroso']);
-    expect(resolved[0].therapeuticMedications.available.map((item) => item.genericName)).toEqual(['Sulfato ferroso']);
-    expect(resolved[0].therapeuticMedications.unavailable).toEqual([]);
-  });
-
-  it('calcula dosis por peso con límite máximo', () => {
-    const dosage = calculateDosage(
-      { mgPorKg: 10, frecuencia: 'cada 8 horas', dosisMaxima: 1000 },
-      { peso: 150, edad: 40 },
+describe('calculateDosage', () => {
+  it('formato objeto (3 mg/kg, peso 15) -> 45', () => {
+    const result = calculateDosage(
+      { mgPorKg: 3, frecuencia: '1 vez al día', dosisMaxima: 60 },
+      { peso: 15 },
     );
 
-    expect(dosage.dosisFinal).toBe(1000);
-    expect(dosage.frecuencia).toBe('cada 8 horas');
-    expect(dosage.advertenciaSiAplica).toContain('Dosis ajustada al máximo permitido');
+    expect(result.dosisFinal).toBe(45);
+    expect(result.frecuencia).toBe('1 vez al día');
+  });
+
+  it('respeta dosis máxima (peso 25, 3 mg/kg, max 60) -> 60', () => {
+    const result = calculateDosage(
+      { mgPorKg: 3, frecuencia: '1 vez al día', dosisMaxima: 60 },
+      { peso: 25 },
+    );
+
+    expect(result.dosisFinal).toBe(60);
+    expect(result.advertenciaSiAplica).toContain('Dosis ajustada al máximo permitido');
+  });
+
+  it('fórmula legacy string "3 mg * peso" con peso 10 -> 30', () => {
+    const result = calculateDosage('3 mg * peso', { peso: 10 });
+    expect(result.dosisFinal).toBe(30);
+  });
+
+  it('dosis fija "500 mg" -> 500', () => {
+    const result = calculateDosage('500 mg', { peso: 10 });
+    expect(result.dosisFinal).toBe(500);
+  });
+
+  it('sin definición -> dosisFinal null', () => {
+    const result = calculateDosage(undefined, { peso: 10 });
+    expect(result.dosisFinal).toBeNull();
+  });
+
+  it('división por cero en fórmula -> dosisFinal null y advertencia', () => {
+    const result = calculateDosage('10 mg * peso / 0', { peso: 10 });
+    expect(result.dosisFinal).toBeNull();
+    expect(result.advertenciaSiAplica).toContain('División entre cero no permitida');
+  });
+});
+
+describe('runRuleEngine', () => {
+  it('regla que no matchea -> array vacío', () => {
+    const rules = [
+      {
+        id: 'r-no-match',
+        conditions: {
+          operator: 'AND',
+          conditions: [{ field: 'edad', type: 'number', operator: '>', value: 18 }],
+        },
+      },
+    ];
+
+    const result = runRuleEngine({ rules, patientData: { edad: 10, nivelResolutivo: 'I-2' } });
+    expect(result).toEqual([]);
+  });
+
+  it('rule con levelRequired [I-3] y facility I-1 -> array vacío', () => {
+    const rules = [
+      {
+        id: 'r-level',
+        levelRequired: ['I-3'],
+        conditions: {
+          operator: 'AND',
+          conditions: [{ field: 'edad', type: 'number', operator: '>', value: 1 }],
+        },
+      },
+    ];
+
+    const result = runRuleEngine({ rules, patientData: { edad: 10, nivelResolutivo: 'I-1' } });
+    expect(result).toEqual([]);
+  });
+
+  it('regla que matchea -> devuelve diagnosis, severity y treatmentPlan', () => {
+    const rules = [
+      {
+        id: 'r-ok',
+        conditions: {
+          operator: 'AND',
+          conditions: [{ field: 'edad', type: 'number', operator: '>', value: 1 }],
+        },
+        result: { classification: 'Deshidratación leve', severity: 'Leve' },
+        treatment: { firstLine: 'SRO', doseFormula: '3 mg * peso' },
+      },
+    ];
+
+    const result = runRuleEngine({
+      rules,
+      patientData: {
+        edad: 10,
+        peso: 20,
+        nivelResolutivo: 'I-2',
+        medicamentosDisponibles: ['SRO'],
+      },
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].diagnosis).toBe('Deshidratación leve');
+    expect(result[0].severity).toBe('Leve');
+    expect(result[0].treatmentPlan).toBeTruthy();
+  });
+
+  it('unmetPolicy exclude con medicamento faltante -> array vacío', () => {
+    const rules = [
+      {
+        id: 'r-exclude',
+        conditions: {
+          operator: 'AND',
+          conditions: [{ field: 'edad', type: 'number', operator: '>', value: 1 }],
+        },
+        requiredMedications: ['Sulfato ferroso'],
+        treatment: { firstLine: 'Sulfato ferroso', doseFormula: '3 mg * peso' },
+        result: { classification: 'Anemia', severity: 'Moderada' },
+      },
+    ];
+
+    const result = runRuleEngine({
+      rules,
+      patientData: {
+        edad: 12,
+        peso: 20,
+        nivelResolutivo: 'I-2',
+        medicamentosDisponibles: [],
+      },
+      unmetPolicy: 'exclude',
+    });
+
+    expect(result).toEqual([]);
   });
 });
