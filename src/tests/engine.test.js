@@ -179,6 +179,28 @@ describe('calculateDosage', () => {
     expect(result.dosisFinal).toBeNull();
     expect(result.advertenciaSiAplica).toContain('División entre cero no permitida');
   });
+
+  it('calcula superficie e IMC internamente y permite usarlos en fórmula', () => {
+    const result = calculateDosage(
+      { formula: 'superficie * 10 + imc', frecuencia: 'c/24h', unit: 'mg' },
+      { peso: 20, talla: 110, edad: 5 },
+    );
+
+    expect(result.dosisFinal).toBe(24.35);
+    expect(result.description).toContain('Grupo etario: pediatrico.');
+    expect(result.description).toContain('Superficie corporal: 0.7817 m².');
+  });
+
+  it('permite creatinina en fórmula y mantiene compatibilidad legacy', () => {
+    const creatininaResult = calculateDosage(
+      { formula: 'peso + creatinina * 10', unit: 'mg' },
+      { peso: 30, talla: 140, creatinina: 1.2, edad: 25 },
+    );
+    const legacyResult = calculateDosage('3 mg * peso', { peso: 10, talla: 120 });
+
+    expect(creatininaResult.dosisFinal).toBe(42);
+    expect(legacyResult.dosisFinal).toBe(30);
+  });
 });
 
 describe('runRuleEngine', () => {

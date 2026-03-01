@@ -2,7 +2,7 @@
  * Variables numéricas permitidas para fórmulas dinámicas.
  * No se usa eval; se parsea de forma controlada.
  */
-const ALLOWED_VARIABLES = new Set(['peso', 'edad', 'mgPorKg', 'dosisMaxima']);
+const ALLOWED_VARIABLES = new Set(['peso', 'edad', 'talla', 'superficie', 'imc', 'creatinina', 'mgPorKg', 'dosisMaxima']);
 
 /**
  * Clasificación etaria simple para trazabilidad clínica de posología.
@@ -213,15 +213,31 @@ const evaluateSafeFormula = (formula, context) => {
 /**
  * Normaliza salida con el formato nuevo y mantiene compatibilidad de campos.
  */
-const buildDosageResult = ({ dosisFinal, frecuencia = '', advertenciaSiAplica = '', unit = 'mg', description }) => ({
+const buildDosageResult = ({
   dosisFinal,
-  frecuencia,
-  advertenciaSiAplica,
-  unit,
+  frecuencia = '',
+  advertenciaSiAplica = '',
+  unit = 'mg',
   description,
-  // Compatibilidad hacia atrás
-  value: dosisFinal,
-});
+  ageGroup = '',
+  superficieUsed = false,
+  superficie = null,
+}) => {
+  const ageNote = ageGroup ? ` Grupo etario: ${ageGroup}.` : '';
+  const superficieNote = superficieUsed && superficie !== null
+    ? ` Superficie corporal: ${superficie} m².`
+    : '';
+
+  return {
+    dosisFinal,
+    frecuencia,
+    advertenciaSiAplica,
+    unit,
+    description: `${description}${ageNote}${superficieNote}`.trim(),
+    // Compatibilidad hacia atrás
+    value: dosisFinal,
+  };
+};
 
 /**
  * Calcula posología.
@@ -239,7 +255,7 @@ const buildDosageResult = ({ dosisFinal, frecuencia = '', advertenciaSiAplica = 
  *    "75 ml * peso" | "500 mg"
  *
  * @param {string|{mgPorKg?: number, frecuencia?: string, dosisMaxima?: number, formula?: string, unit?: string}} doseDefinition
- * @param {{peso: number, edad: number}} patientData
+ * @param {{peso: number, edad: number, talla?: number, creatinina?: number}} patientData
  * @returns {{
  *  dosisFinal: number|null,
  *  frecuencia: string,
@@ -252,7 +268,16 @@ const buildDosageResult = ({ dosisFinal, frecuencia = '', advertenciaSiAplica = 
 export const calculateDosage = (doseDefinition, patientData = {}) => {
   const peso = Number(patientData.peso || 0);
   const edad = Number(patientData.edad || 0);
+  const talla = Number(patientData.talla || 0);
+  const creatinina = Number(patientData.creatinina || 0);
   const ageGroup = getAgeGroup(edad);
+
+  const superficie = talla > 0
+    ? Number(Math.sqrt((peso * talla) / 3600).toFixed(4))
+    : 0;
+  const imc = talla > 0
+    ? Number((peso / ((talla / 100) ** 2)).toFixed(2))
+    : 0;
 
   if (!doseDefinition) {
     return buildDosageResult({
@@ -261,6 +286,7 @@ export const calculateDosage = (doseDefinition, patientData = {}) => {
       advertenciaSiAplica: 'Sin dosis definida en la regla.',
       unit: '',
       description: 'Sin dosis definida en la regla.',
+      ageGroup,
     });
   }
 
@@ -275,11 +301,17 @@ export const calculateDosage = (doseDefinition, patientData = {}) => {
     const context = {
       peso,
       edad,
+      talla,
+      superficie,
+      imc,
+      creatinina,
       mgPorKg,
       dosisMaxima: dosisMaxima || 0,
     };
 
     let baseDose = 0;
+    const formulaUsed = String(doseDefinition.formula || '').toLowerCase();
+    const superficieUsed = formulaUsed.includes('superficie');
 
     try {
       if (doseDefinition.formula) {
@@ -294,6 +326,9 @@ export const calculateDosage = (doseDefinition, patientData = {}) => {
         advertenciaSiAplica: `Error en fórmula: ${error.message}`,
         unit,
         description: `No se pudo calcular dosis para ${ageGroup}.`,
+        ageGroup,
+        superficieUsed,
+        superficie,
       });
     }
 
@@ -311,11 +346,15 @@ export const calculateDosage = (doseDefinition, patientData = {}) => {
       advertenciaSiAplica: warning,
       unit,
       description: `Dosis calculada para ${ageGroup}: ${finalDose} ${unit}.`,
+      ageGroup,
+      superficieUsed,
+      superficie,
     });
   }
 
   // Compatibilidad con fórmula legacy string
   const cleaned = String(doseDefinition).replace(/\s+/g, ' ').trim();
+  const legacyUsesSuperficie = cleaned.toLowerCase().includes('superficie');
 
   const byWeightPattern = /^(\d+(?:\.\d+)?)\s*([a-zA-Z%]+)\s*\*\s*peso$/i;
   const byWeightMatch = cleaned.match(byWeightPattern);
@@ -331,6 +370,9 @@ export const calculateDosage = (doseDefinition, patientData = {}) => {
       advertenciaSiAplica: '',
       unit,
       description: `${value} ${unit} (calculado: ${factor} ${unit} x ${peso} kg)`,
+      ageGroup,
+      superficieUsed: legacyUsesSuperficie,
+      superficie,
     });
   }
 
@@ -347,6 +389,9 @@ export const calculateDosage = (doseDefinition, patientData = {}) => {
       advertenciaSiAplica: '',
       unit,
       description: `${value} ${unit} (dosis fija)`,
+      ageGroup,
+      superficieUsed: legacyUsesSuperficie,
+      superficie,
     });
   }
 
@@ -356,6 +401,9 @@ export const calculateDosage = (doseDefinition, patientData = {}) => {
     advertenciaSiAplica: `No se pudo interpretar la fórmula: "${doseDefinition}"`,
     unit: '',
     description: `No se pudo interpretar la fórmula: "${doseDefinition}"`,
+    ageGroup,
+    superficieUsed: legacyUsesSuperficie,
+    superficie,
   });
 };
 
